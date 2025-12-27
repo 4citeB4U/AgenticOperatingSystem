@@ -1,8 +1,8 @@
 
-import './src/polyfills';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './src/App';
+import App from '../src/App';
+import '../src/polyfills';
 
 const container = document.getElementById('root');
 if (!container) {

@@ -68,3 +68,6 @@ public/models_OLD*/
 # Remove the comments to enable these rules
 #public/models/
 #public/ort/
+
+reports/
+
