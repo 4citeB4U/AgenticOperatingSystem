@@ -1,0 +1,63 @@
+{
+  "_LEEWAY_HEADER": {
+    "PROFILE": "LEEWAY-ORDER",
+    "TAG": "CORE.APP.COMPONENT.MAIN",
+    "REGION": "🟢 CORE",
+    "VERSION": "1.0.0",
+    "DISCOVERY_PIPELINE": {
+      "MODEL": "Voice>Intent>Location>Vertical>Ranking>Render",
+      "ROLE": "support",
+      "INTENT_SCOPE": "n/a",
+      "LOCATION_DEP": "none",
+      "VERTICALS": "n/a",
+      "RENDER_SURFACE": "n/a",
+      "SPEC_REF": "LEEWAY.v12.DiscoveryArchitecture"
+    }
+  },
+  "name": "agentic-operating-system",
+  "version": "38.0.0",
+  "type": "module",
+  "description": "Sovereign Neural Monolith. A local-first, high-performance AI Operating System.",
+  "scripts": {
+    "dev": "node tools/copy_wasm.cjs && vite",
+    "build": "node tools/copy_wasm.cjs && tsc && vite build",
+    "preview": "vite preview",
+    "leeway:audit": "tsx src/leeway-audit.ts",
+    "leeway:fix": "tsx src/leeway-audit.ts --fix",
+    "leeway:report": "tsx src/leeway-audit.ts --report"
+  },
+  "dependencies": {
+    "@google/genai": "^1.34.0",
+    "@google/generative-ai": "^0.24.1",
+    "@xenova/transformers": "^2.17.2",
+    "buffer": "^6.0.3",
+    "idb": "^8.0.3",
+    "jszip": "^3.10.1",
+    "long": "^5.3.2",
+    "lucide-react": "^0.562.0",
+    "onnxruntime-node": "^1.23.2",
+    "onnxruntime-web": "^1.23.2",
+    "react": "^19.2.3",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "tesseract.js": "^6.0.1",
+    "three": "^0.181.2",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@fortawesome/fontawesome-free": "^6.4.0",
+    "@playwright/test": "^1.57.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.182.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.14",
+    "playwright": "^1.57.0",
+    "postcss": "^8.4.24",
+    "tailwindcss": "^3.4.7",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vite-plugin-node-polyfills": "^0.23.0",
+    "vite-plugin-static-copy": "^3.1.4"
+  }
+}

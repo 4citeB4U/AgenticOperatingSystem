@@ -1,0 +1,6 @@
+{
+  "endpointUrl": "https://example.com/api/chat",
+  "healthPrompt": "Say \"alive\"",
+  "apiKeyEnv": "HF_TOKEN",
+  "modelId": "gpt-example"
+}

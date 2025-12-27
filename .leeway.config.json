@@ -1,0 +1,15 @@
+{
+  "expectedModelDirs": [
+    "public/models"
+  ],
+  "readyCriteria": {
+    "requiredStages": [
+      "00",
+      "01"
+    ]
+  },
+  "buildScripts": [
+    "build",
+    "start"
+  ]
+}

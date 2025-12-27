@@ -1,0 +1,23 @@
+{
+  "_LEEWAY_HEADER": {
+    "PROFILE": "LEEWAY-ORDER",
+    "TAG": "CORE.APP.METADATA.MAIN",
+    "REGION": "🟢 CORE",
+    "VERSION": "1.1.1",
+    "DISCOVERY_PIPELINE": {
+      "MODEL": "Voice>Intent>Location>Vertical>Ranking>Render",
+      "ROLE": "support",
+      "INTENT_SCOPE": "n/a",
+      "LOCATION_DEP": "none",
+      "VERTICALS": "n/a",
+      "RENDER_SURFACE": "in-app",
+      "SPEC_REF": "LEEWAY.v12.DiscoveryArchitecture"
+    }
+  },
+  "name": "Agent-Lee-Agentic-Operating-System",
+  "description": "A web-based recreation of the VS-code/Open-Ai ChatGpt experience, powered by strictly local WebAssembly and WebGPU models for high-speed offline inference.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

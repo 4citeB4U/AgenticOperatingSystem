@@ -1,0 +1,36 @@
+/* ============================================================================
+   LEEWAY HEADER — DO NOT REMOVE
+   PROFILE: LEEWAY-ORDER
+   TAG: CORE.APP.COMPONENT.MAIN
+   REGION: 🟢 CORE
+   VERSION: 1.0.0
+   ============================================================================
+   CommunicationsOutlet.css
+   
+   DISCOVERY_PIPELINE:
+     MODEL=Voice>Intent>Location>Vertical>Ranking>Render;
+     ROLE=support;
+     INTENT_SCOPE=n/a;
+     LOCATION_DEP=none;
+     VERTICALS=n/a;
+     RENDER_SURFACE=in-app;
+     SPEC_REF=LEEWAY.v12.DiscoveryArchitecture
+
+   SPDX-License-Identifier: MIT
+   ============================================================================ */
+
+.hex-button{clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);aspect-ratio:1/1}
+.hex-inner{clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);}
+
+/* Placeholder styles for CommunicationsOutlet interactive elements */
+.communications-outlet-root{position:relative}
+
+/* Additional helper classes can be added here as we extract more inline styles */
+
+/* Draggable presentation window uses CSS variables set by the component */
+.draggable-presentation-window{
+	left: var(--pos-left, 20px);
+	top: var(--pos-top, 80px);
+	width: var(--size-w, 320px);
+	height: var(--size-h, 240px);
+}

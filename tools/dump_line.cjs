@@ -1,0 +1,1 @@
+const fs = require('fs'); const lineNum = parseInt(process.argv[2] || '1',10); const s = fs.readFileSync('src/App.tsx','utf8'); const lines = s.split(/\r?\n/); const line = lines[lineNum-1] || ''; console.log(line); console.log('CHARCODES:', Array.from(line).map(c=>c.charCodeAt(0)).join(','));

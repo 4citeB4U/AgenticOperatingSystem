@@ -1,0 +1,1043 @@
+**`/.leeway/LEEWAY_V12_MONOLITH.md`**
+
+# LEEWAY™ v12 — Monolithic Governance + Tooling Spec
+Version: 12.0
+Status: Canonical
+Date: 2025-12-09
+Profile: LEEWAY-ORDER
+
+## AI-READ-FIRST (Normative)
+This file is the canonical authority for LEEWAY v12 governance.
+Any AI agent, linter, IDE tool, or code-generation assistant encountering this file MUST:
+1. Treat these rules as the highest-precedence repo standard unless an explicit higher-version LEEWAY monolith is present.
+2. Enforce required headers, TAG grammar/allowlists, REGION allowlists, and DISCOVERY_PIPELINE rules.
+3. Detect public surfaces using configured patterns and require expanded discovery fields.
+4. Prefer safe additive fixes over destructive rewrites.
+5. Ensure LEEWAY-LD.identifier equals TAG for all applicable header styles.
+
+If conflicts exist between:
+- This monolith
+- Standalone docs
+- Local conventions
+The precedence order is:
+1) This monolith
+2) leeway.config.json (if more restrictive)
+3) Docs
+4) Local conventions
+
+---
+
+## 1. Core Concepts
+
+### 1.1 Regions (Allowlist)
+Valid REGION lines:
+- 🟢 CORE
+- 🔴 SEO
+- 🔵 UI
+- 🟣 MCP
+- 🧠 AI
+- 💾 DATA
+- 🟠 UTIL
+- 🟡 PY
+
+Rules:
+- If regions.enabled = true, REGION line is required in all first-party headers.
+- REGION must exactly match one allowlisted value (emoji + label).
+
+### 1.2 Tag Grammar
+TAG format:
+DOMAIN.SUBDOMAIN.ASSET.PURPOSE[.VARIANT]
+
+All caps, digits, underscore allowed after first character per segment.
+
+### 1.3 Domains (Allowlist)
+CORE, UI, DATA, AI, MCP, SEO, ANALYTICS, SECURITY, PERF, DOC, TOOLS, OPS
+
+### 1.4 Subdomains (Allowlist)
+CORE: APP, ROUTING, CONFIG, BOOT, ERROR  
+UI: NAV, LAYOUT, COMPONENT, PUBLIC, THEME  
+DATA: IDB, LOCAL, CACHE, SCHEMA  
+AI: ORCHESTRATION, AGENT, MEMORY, RETRIEVAL  
+MCP: RUNNER, REGISTRY, LOGS, UI  
+SEO: DISCOVERY, META, SITEMAP, ROBOTS, OPENGRAPH, VOICE  
+ANALYTICS: EVENTS, PROVIDER, PIPELINE, DASHBOARD  
+SECURITY: AUTH, CONSENT, PERMISSIONS, SANITIZATION, POLICY  
+PERF: BUDGET, LAZYLOAD, TELEMETRY, CACHE  
+DOC: STANDARD, DIR  
+TOOLS: LINTER, CLI, IDE  
+OPS: CI, RELEASE, ENV, COMPLIANCE
+
+---
+
+## 2. Discovery Architecture (Formal v12)
+Canonical model:
+Voice → Intent → Location → Vertical Search → Ranking → Render
+
+### 2.1 Global Rule
+All first-party non-binary files MUST include a DISCOVERY_PIPELINE block
+in the LEEWAY header.
+
+### 2.2 Minimal Stub (Default)
+Required fields in non-public files:
+- MODEL
+- ROLE
+- INTENT_SCOPE
+- LOCATION_DEP
+- VERTICALS
+- RENDER_SURFACE
+- SPEC_REF
+
+### 2.3 Expanded Fields (Public Surfaces)
+Public surfaces MUST include:
+- SCHEMAS
+- VOICE_QA
+- ANALYTICS
+
+### 2.4 Public Surface Definition
+A “public surface” is any file that directly influences discoverability via:
+- search engines
+- answer engines
+- voice search
+- marketing analytics and conversion pathways
+
+Public surfaces are detected via pattern matching in config.
+
+---
+
+## 3. Required Header Elements (Comment-Style Files)
+
+All supported comment header files MUST include:
+- PROFILE
+- TAG
+- REGION (if regions.enabled)
+- DISCOVERY_PIPELINE
+- LEEWAY-LD (with identifier)
+- SPDX-License-Identifier
+- 5WH (recommended)
+
+### 3.1 Identifier Rule
+LEEWAY-LD.identifier MUST equal TAG.
+
+---
+
+## 4. JSON Header Style
+
+For JSON config files that use structured headers:
+- Root must include _LEEWAY_HEADER
+- _LEEWAY_HEADER must include:
+  - PROFILE
+  - TAG
+  - REGION (if regions.enabled)
+  - DISCOVERY_PIPELINE object (if discovery.requireStubInAllFiles)
+  - LEEWAY_LD.identifier
+
+---
+
+## 5. Machine-Readable Bundle (Canonical)
+
+AI tools MAY parse this block for enforcement without reading the entire doc.
+
+```json
+{
+  "version": "12.0",
+  "profile": "LEEWAY-ORDER",
+  "date": "2025-12-09",
+
+  "tags": {
+    "grammar": "^([A-Z][A-Z0-9_]*)\\.([A-Z][A-Z0-9_]*)\\.([A-Z][A-Z0-9_]*)\\.([A-Z][A-Z0-9_]*)(?:\\.([A-Z][A-Z0-9_]*))?$",
+    "domains": [
+      "CORE","UI","DATA","AI","MCP","SEO",
+      "ANALYTICS","SECURITY","PERF","DOC","TOOLS","OPS"
+    ],
+    "subdomains": {
+      "CORE": ["APP","ROUTING","CONFIG","BOOT","ERROR"],
+      "UI": ["NAV","LAYOUT","COMPONENT","PUBLIC","THEME"],
+      "DATA": ["IDB","LOCAL","CACHE","SCHEMA"],
+      "AI": ["ORCHESTRATION","AGENT","MEMORY","RETRIEVAL"],
+      "MCP": ["RUNNER","REGISTRY","LOGS","UI"],
+      "SEO": ["DISCOVERY","META","SITEMAP","ROBOTS","OPENGRAPH","VOICE"],
+      "ANALYTICS": ["EVENTS","PROVIDER","PIPELINE","DASHBOARD"],
+      "SECURITY": ["AUTH","CONSENT","PERMISSIONS","SANITIZATION","POLICY"],
+      "PERF": ["BUDGET","LAZYLOAD","TELEMETRY","CACHE"],
+      "DOC": ["STANDARD","DIR"],
+      "TOOLS": ["LINTER","CLI","IDE"],
+      "OPS": ["CI","RELEASE","ENV","COMPLIANCE"]
+    },
+    "requireIdentifierMatch": true,
+    "strictModeDefault": true
+  },
+
+  "regions": {
+    "enabledDefault": true,
+    "requireRegionLineDefault": true,
+    "allowlist": [
+      "🟢 CORE","🔴 SEO","🔵 UI","🟣 MCP",
+      "🧠 AI","💾 DATA","🟠 UTIL","🟡 PY"
+    ],
+    "folderBindingsDefault": [
+      { "match": "src/seo", "region": "🔴 SEO" },
+      { "match": "src/analytics", "region": "🟠 UTIL" },
+      { "match": "src/ai", "region": "🧠 AI" },
+      { "match": "src/mcp", "region": "🟣 MCP" },
+      { "match": "src/data", "region": "💾 DATA" },
+      { "match": "src/core", "region": "🟢 CORE" },
+      { "match": "src/ui", "region": "🔵 UI" },
+      { "match": "tools", "region": "🟠 UTIL" },
+      { "match": "docs", "region": "🟢 CORE" }
+    ]
+  },
+
+  "discovery": {
+    "requireStubInAllFilesDefault": true,
+    "model": "Voice>Intent>Location>Vertical>Ranking>Render",
+    "publicSurfacesDefault": {
+      "enabled": true,
+      "patterns": [
+        "index.html",
+        "src/pages/**",
+        "src/routes/**",
+        "src/public/**",
+        "src/marketing/**",
+        "src/seo/**",
+        "docs/standards/**",
+        "docs/**/public/**"
+      ],
+      "requireExpandedFields": ["SCHEMAS","VOICE_QA","ANALYTICS"]
+    }
+  },
+
+  "scan": {
+    "includeExtensionsDefault": [".ts",".tsx",".js",".jsx",".css",".html",".md",".json"],
+    "excludeDirsDefault": ["node_modules",".git","dist","build","out",".next",".cache"]
+  },
+
+  "score": {
+    "minBronzeDefault": 70,
+    "minSilverDefault": 85,
+    "minGoldDefault": 95
+  }
+}
+````
+
+---
+
+## 6. Reference Header Templates (Canonical Skeletons)
+
+### 6.1 Minimal DISCOVERY_PIPELINE (for all files)
+
+```txt
+DISCOVERY_PIPELINE:
+  MODEL=Voice>Intent>Location>Vertical>Ranking>Render;
+  ROLE=support;
+  INTENT_SCOPE=n/a;
+  LOCATION_DEP=indirect;
+  VERTICALS=n/a;
+  RENDER_SURFACE=in-app;
+  SPEC_REF=LEEWAY.v12.DiscoveryArchitecture
+```
+
+### 6.2 Expanded DISCOVERY_PIPELINE (public surfaces)
+
+```txt
+DISCOVERY_PIPELINE:
+  MODEL=Voice>Intent>Location>Vertical>Ranking>Render;
+  ROLE=direct;
+  INTENT_SCOPE=mixed;
+  LOCATION_DEP=indirect;
+  VERTICALS=web,places,travel,reviews,video;
+  RENDER_SURFACE=serp,assistant,in-app;
+  SCHEMAS=Organization,SoftwareApplication,FAQPage;
+  VOICE_QA=enabled;
+  ANALYTICS=seo:*,voice:*,cta:*,conversion:*;
+  SPEC_REF=LEEWAY.v12.DiscoveryArchitecture
+```
+
+---
+
+## 7. VS Code Tag Autocomplete Map (Canonical Dataset)
+
+This is intended to be used verbatim by an IDE extension.
+
+```json
+{
+  "version": "12.0",
+  "schema": "LEEWAY_TAG_AUTOCOMPLETE_MAP",
+  "domains": [
+    "CORE","UI","DATA","AI","MCP","SEO","ANALYTICS",
+    "SECURITY","PERF","DOC","TOOLS","OPS"
+  ],
+  "subdomains": {
+    "CORE": ["APP","ROUTING","CONFIG","BOOT","ERROR"],
+    "UI": ["NAV","LAYOUT","COMPONENT","PUBLIC","THEME"],
+    "DATA": ["IDB","LOCAL","CACHE","SCHEMA"],
+    "AI": ["ORCHESTRATION","AGENT","MEMORY","RETRIEVAL"],
+    "MCP": ["RUNNER","REGISTRY","LOGS","UI"],
+    "SEO": ["DISCOVERY","META","SITEMAP","ROBOTS","OPENGRAPH","VOICE"],
+    "ANALYTICS": ["EVENTS","PROVIDER","PIPELINE","DASHBOARD"],
+    "SECURITY": ["AUTH","CONSENT","PERMISSIONS","SANITIZATION","POLICY"],
+    "PERF": ["BUDGET","LAZYLOAD","TELEMETRY","CACHE"],
+    "DOC": ["STANDARD","DIR"],
+    "TOOLS": ["LINTER","CLI","IDE"],
+    "OPS": ["CI","RELEASE","ENV","COMPLIANCE"]
+  },
+  "recommendedTags": [
+    "CORE.APP.ENTRY.MAIN",
+    "CORE.APP.SHELL.LAYOUT",
+    "CORE.ROUTING.CLIENT.NAV",
+    "CORE.CONFIG.RUNTIME.ENV",
+    "CORE.BOOT.SEQUENCE.INIT",
+    "CORE.ERROR.BOUNDARY.GLOBAL",
+
+    "UI.NAV.HEADER.MAIN",
+    "UI.NAV.SIDEBAR.PRIMARY",
+    "UI.NAV.FOOTER.RESOURCES",
+    "UI.LAYOUT.GRID.SYSTEM",
+    "UI.COMPONENT.CARD.BASE",
+    "UI.COMPONENT.BUTTON.PRIMARY",
+    "UI.COMPONENT.MODAL.CONSENT",
+    "UI.PUBLIC.PAGE.HOME",
+    "UI.PUBLIC.PAGE.ABOUT",
+    "UI.PUBLIC.PAGE.PRICING",
+    "UI.PUBLIC.PAGE.LEARNING",
+    "UI.PUBLIC.PAGE.CONTACT",
+    "UI.THEME.TOKENS.COLOR_ONION",
+
+    "DATA.IDB.VAULT.MEMORY",
+    "DATA.IDB.STORE.USER_PROFILE",
+    "DATA.IDB.STORE.ANALYTICS_LOGS",
+    "DATA.IDB.STORE.MCP_LOGS",
+    "DATA.LOCAL.PREFS.THEME",
+    "DATA.SCHEMA.EVENTS.CANONICAL",
+    "DATA.SCHEMA.USER.PROFILE",
+    "DATA.SCHEMA.BADGES.PROGRESSION",
+
+    "AI.ORCHESTRATION.ROUTER.CORE",
+    "AI.ORCHESTRATION.POLICY.SAFETY",
+    "AI.ORCHESTRATION.STATE.SYNC",
+    "AI.ORCHESTRATION.DISCOVERY.ROUTER",
+    "AI.AGENT.LEE.ORCHESTRATOR",
+    "AI.AGENT.TIM.SALES",
+    "AI.AGENT.LEONARD.RESOURCE",
+    "AI.AGENT.NICOLE.SHOWCASE",
+    "AI.MEMORY.LOCAL.PRIMARY",
+    "AI.RETRIEVAL.INDEX.RAG",
+    "AI.RETRIEVAL.POLICY.BUDGET",
+
+    "MCP.RUNNER.COMMAND.CORE",
+    "MCP.REGISTRY.CAPABILITIES",
+    "MCP.LOGS.LOCAL.HISTORY",
+    "MCP.UI.CONSOLE.PANEL",
+
+    "SEO.DISCOVERY.JSONLD.GENERATOR",
+    "SEO.DISCOVERY.JSONLD.ORGANIZATION",
+    "SEO.DISCOVERY.JSONLD.SOFTWARE_APP",
+    "SEO.DISCOVERY.JSONLD.FAQ",
+    "SEO.META.HEAD.CORE",
+    "SEO.SITEMAP.GENERATOR.XML",
+    "SEO.ROBOTS.POLICY.TXT",
+    "SEO.OPENGRAPH.CARDS",
+    "SEO.VOICE.QA.PRIMARY",
+    "SEO.VOICE.INTENT.MAP",
+
+    "ANALYTICS.EVENTS.TAXONOMY.CORE",
+    "ANALYTICS.EVENTS.SEO",
+    "ANALYTICS.EVENTS.VOICE",
+    "ANALYTICS.EVENTS.CTA",
+    "ANALYTICS.EVENTS.CONVERSION",
+    "ANALYTICS.EVENTS.RETENTION",
+    "ANALYTICS.EVENTS.FEATURE",
+    "ANALYTICS.EVENTS.COST",
+    "ANALYTICS.PROVIDER.GA4",
+    "ANALYTICS.PROVIDER.PLAUSIBLE",
+    "ANALYTICS.PIPELINE.LOCAL_FIRST",
+    "ANALYTICS.DASHBOARD.EXEC",
+
+    "SECURITY.CONSENT.PRIVACY",
+    "SECURITY.PERMISSIONS.LOCATION",
+    "SECURITY.SANITIZATION.INPUT",
+    "SECURITY.POLICY.CSP",
+    "SECURITY.AUTH.SESSION",
+
+    "PERF.BUDGET.CORE",
+    "PERF.LAZYLOAD.UI",
+    "PERF.TELEMETRY.CLIENT",
+    "PERF.CACHE.STRATEGY",
+
+    "DOC.STANDARD.LEEWAY.V12.ROOT",
+    "DOC.STANDARD.LEEWAY.V12.DISCOVERY",
+    "DOC.STANDARD.LEEWAY.V12.HEADERS",
+    "DOC.STANDARD.LEEWAY.V12.TAGS",
+    "DOC.DIR.MANIFEST.ROOT",
+
+    "TOOLS.LINTER.LEEWAY.CORE",
+    "TOOLS.CLI.LEEWAY.INIT",
+    "TOOLS.CLI.LEEWAY.AUDIT",
+    "TOOLS.CLI.LEEWAY.MIGRATE",
+    "TOOLS.IDE.VSCODE.EXTENSION",
+
+    "OPS.CI.GITHUB.ACTIONS",
+    "OPS.RELEASE.VERSIONING",
+    "OPS.ENV.CONFIG",
+    "OPS.COMPLIANCE.SCORE"
+  ],
+  "snippets": [
+    { "label": "LEEWAY Tag Skeleton", "body": "DOMAIN.SUBDOMAIN.ASSET.PURPOSE" }
+  ]
+}
+```
+
+---
+
+## 8. Reference Implementations (Embedded Source)
+
+These modules are included here as canonical reference.
+Tools may copy or import them as separate files.
+
+### 8.1 Tag Rules
+
+```js
+// LEEWAY v12 Tag Rules (canonical)
+
+export const LEEWAY_TAG_GRAMMAR =
+  /^([A-Z][A-Z0-9_]*)\.([A-Z][A-Z0-9_]*)\.([A-Z][A-Z0-9_]*)\.([A-Z][A-Z0-9_]*)(?:\.([A-Z][A-Z0-9_]*))?$/;
+
+export const LEEWAY_DOMAIN_ALLOWLIST = new Set([
+  "CORE","UI","DATA","AI","MCP","SEO",
+  "ANALYTICS","SECURITY","PERF","DOC","TOOLS","OPS"
+]);
+
+export const LEEWAY_SUBDOMAIN_ALLOWLIST = {
+  CORE: new Set(["APP","ROUTING","CONFIG","BOOT","ERROR"]),
+  UI: new Set(["NAV","LAYOUT","COMPONENT","PUBLIC","THEME"]),
+  DATA: new Set(["IDB","LOCAL","CACHE","SCHEMA"]),
+  AI: new Set(["ORCHESTRATION","AGENT","MEMORY","RETRIEVAL"]),
+  MCP: new Set(["RUNNER","REGISTRY","LOGS","UI"]),
+  SEO: new Set(["DISCOVERY","META","SITEMAP","ROBOTS","OPENGRAPH","VOICE"]),
+  ANALYTICS: new Set(["EVENTS","PROVIDER","PIPELINE","DASHBOARD"]),
+  SECURITY: new Set(["AUTH","CONSENT","PERMISSIONS","SANITIZATION","POLICY"]),
+  PERF: new Set(["BUDGET","LAZYLOAD","TELEMETRY","CACHE"]),
+  DOC: new Set(["STANDARD","DIR"]),
+  TOOLS: new Set(["LINTER","CLI","IDE"]),
+  OPS: new Set(["CI","RELEASE","ENV","COMPLIANCE"])
+};
+
+export function validateLeewayTag(tag, { enforceSubdomainAllowlist = true } = {}) {
+  if (!tag) return { ok: false, reason: "TAG missing." };
+
+  const match = LEEWAY_TAG_GRAMMAR.exec(tag);
+  if (!match) return { ok: false, reason: "TAG does not match LEEWAY grammar." };
+
+  const [, domain, subdomain] = match;
+
+  if (!LEEWAY_DOMAIN_ALLOWLIST.has(domain)) {
+    return { ok: false, reason: `Unknown DOMAIN '${domain}'.` };
+  }
+
+  if (enforceSubdomainAllowlist) {
+    const allowed = LEEWAY_SUBDOMAIN_ALLOWLIST[domain];
+    if (allowed && !allowed.has(subdomain)) {
+      return { ok: false, reason: `Unknown SUBDOMAIN '${subdomain}' for DOMAIN '${domain}'.` };
+    }
+  }
+
+  return { ok: true, reason: null };
+}
+
+export function validateIdentifierEqualsTag(tag, identifier) {
+  if (!identifier) return { ok: false, reason: "Missing LEEWAY-LD identifier." };
+  if (tag !== identifier) return { ok: false, reason: "LEEWAY-LD identifier must equal TAG." };
+  return { ok: true, reason: null };
+}
+```
+
+### 8.2 Region Rules
+
+```js
+// LEEWAY v12 Region Rules (canonical)
+
+export function normalizeRegionLine(regionLine) {
+  if (!regionLine) return null;
+  return regionLine.replace(/\s+/g, " ").trim();
+}
+
+export function validateRegion(regionLine, configRegions) {
+  if (!configRegions?.enabled) return { ok: true, reason: null };
+
+  const normalized = normalizeRegionLine(regionLine);
+
+  if (configRegions.requireRegionLine && !normalized) {
+    return { ok: false, reason: "Missing REGION line in header." };
+  }
+
+  if (normalized && Array.isArray(configRegions.allowlist)) {
+    if (!configRegions.allowlist.includes(normalized)) {
+      return { ok: false, reason: `REGION must match allowlist. Found '${normalized}'.` };
+    }
+  }
+
+  return { ok: true, reason: null };
+}
+```
+
+### 8.3 Public Surface + Expanded Discovery Rules
+
+```js
+// LEEWAY v12 Discovery Rules (canonical)
+
+function normalizeToPosix(p) {
+  return p.replace(/\\/g, "/");
+}
+
+export function matchesPattern(filePath, pattern) {
+  const fp = normalizeToPosix(filePath);
+  const pat = normalizeToPosix(pattern);
+
+  if (!pat.includes("*") && !pat.includes("/")) {
+    return fp.endsWith("/" + pat) || fp.endsWith(pat);
+  }
+
+  const escaped = pat
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, "___DOUBLESTAR___")
+    .replace(/\*/g, "[^/]*")
+    .replace(/___DOUBLESTAR___/g, ".*");
+
+  const re = new RegExp("^.*" + escaped + "$", "i");
+  return re.test(fp);
+}
+
+export function isPublicSurface(filePath, discoveryConfig) {
+  const ps = discoveryConfig?.publicSurfaces;
+  if (!ps?.enabled) return false;
+  const patterns = ps.patterns || [];
+  return patterns.some(p => matchesPattern(filePath, p));
+}
+
+export function validateExpandedDiscovery(headerBlock, filePath, discoveryConfig) {
+  const ps = discoveryConfig?.publicSurfaces;
+  if (!ps?.enabled) return { ok: true, reason: null };
+
+  if (!isPublicSurface(filePath, discoveryConfig)) {
+    return { ok: true, reason: null };
+  }
+
+  const required = ps.requireExpandedFields || [];
+  const missing = [];
+
+  for (const field of required) {
+    const pattern = new RegExp(`\\b${field}\\s*=`, "i");
+    if (!pattern.test(headerBlock || "")) {
+      missing.push(field);
+    }
+  }
+
+  if (missing.length) {
+    return {
+      ok: false,
+      reason: `Public surface requires expanded DISCOVERY fields: missing ${missing.join(", ")}.`
+    };
+  }
+
+  return { ok: true, reason: null };
+}
+```
+
+### 8.4 Region Auto-Mapper
+
+```js
+// LEEWAY v12 Region Auto-Mapper (canonical)
+
+function normalize(p) {
+  return p.replace(/\\/g, "/").toLowerCase();
+}
+
+export function mapRegionFromPath(filePath, regionsConfig) {
+  const p = normalize(filePath);
+
+  const bindings = regionsConfig?.folderBindings || [];
+  for (const b of bindings) {
+    const m = normalize(b.match);
+    if (p.includes(m)) return b.region;
+  }
+
+  if (p.endsWith("index.html")) return "🟢 CORE";
+  if (p.includes("/seo/")) return "🔴 SEO";
+  if (p.includes("/ai/")) return "🧠 AI";
+  if (p.includes("/mcp/")) return "🟣 MCP";
+  if (p.includes("/data/")) return "💾 DATA";
+  if (p.includes("/analytics/")) return "🟠 UTIL";
+  if (p.includes("/docs/")) return "🟢 CORE";
+
+  return "🔵 UI";
+}
+```
+
+### 8.5 Tag Suggestion Engine
+
+```js
+// LEEWAY v12 Tag Suggestion (canonical)
+
+import path from "path";
+import { mapRegionFromPath } from "./region-mapper.js";
+
+const DOMAIN_HINTS = [
+  { match: /\/seo\//i, domain: "SEO", sub: "DISCOVERY" },
+  { match: /\/analytics\//i, domain: "ANALYTICS", sub: "EVENTS" },
+  { match: /\/ai\//i, domain: "AI", sub: "ORCHESTRATION" },
+  { match: /\/mcp\//i, domain: "MCP", sub: "RUNNER" },
+  { match: /\/data\//i, domain: "DATA", sub: "IDB" },
+  { match: /\/security\//i, domain: "SECURITY", sub: "CONSENT" },
+  { match: /\/perf\//i, domain: "PERF", sub: "BUDGET" },
+  { match: /\/docs\//i, domain: "DOC", sub: "STANDARD" },
+  { match: /\/tools\//i, domain: "TOOLS", sub: "LINTER" },
+  { match: /\/\.github\//i, domain: "OPS", sub: "CI" },
+  { match: /\/ops\//i, domain: "OPS", sub: "CI" }
+];
+
+function normalizeRegion(region) {
+  if (!region) return null;
+  const r = region.toUpperCase();
+  if (r.includes("SEO") || r.includes("🔴")) return "SEO";
+  if (r.includes("AI") || r.includes("🧠")) return "AI";
+  if (r.includes("DATA") || r.includes("💾")) return "DATA";
+  if (r.includes("MCP") || r.includes("🟣")) return "MCP";
+  if (r.includes("UI") || r.includes("🔵")) return "UI";
+  if (r.includes("CORE") || r.includes("🟢")) return "CORE";
+  return null;
+}
+
+function domainFromPath(filePath) {
+  const p = filePath.replace(/\\/g, "/");
+  for (const h of DOMAIN_HINTS) {
+    if (h.match.test(p)) return { domain: h.domain, sub: h.sub };
+  }
+  return null;
+}
+
+function domainFromFilename(base) {
+  const b = base.toLowerCase();
+  if (["index","main","app","bootstrap"].some(k => b.includes(k))) {
+    return { domain: "CORE", sub: "APP" };
+  }
+  return null;
+}
+
+export function suggestLeewayTag(filePath, region, regionsConfig) {
+  const resolvedRegion = region || mapRegionFromPath(filePath, regionsConfig);
+  const base = path.basename(filePath, path.extname(filePath));
+  const regionDomain = normalizeRegion(resolvedRegion);
+  const pHint = domainFromPath(filePath);
+  const fHint = domainFromFilename(base);
+
+  const domain = regionDomain || pHint?.domain || fHint?.domain || "UI";
+  const sub = pHint?.sub || fHint?.sub || (domain === "UI" ? "COMPONENT" : "APP");
+
+  const folder = path.basename(path.dirname(filePath))
+    .toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  const asset = folder && folder !== "." ? folder : base.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+
+  const purpose = base.toUpperCase().replace(/[^A-Z0-9_]/g, "_") || "BASE";
+
+  return `${domain}.${sub}.${asset}.${purpose}`;
+}
+```
+
+### 8.6 Expanded Discovery Builder
+
+```js
+// LEEWAY v12 Expanded Discovery Builder (canonical)
+
+import { isPublicSurface } from "./discovery-rules.js";
+
+function normalize(p) {
+  return p.replace(/\\/g, "/").toLowerCase();
+}
+
+function inferVerticals(filePath, tag) {
+  const p = normalize(filePath);
+  const t = (tag || "").toUpperCase();
+  const verticals = new Set(["web"]);
+
+  if (p.includes("/travel") || t.includes("TRAVEL")) verticals.add("travel");
+  if (p.includes("/restaurant") || t.includes("PLACES")) verticals.add("places");
+  if (p.includes("/pricing") || t.includes("PRICING")) verticals.add("commerce");
+  if (p.includes("/learning") || t.includes("LEARNING")) verticals.add("education");
+  if (p.includes("/docs") || t.includes("DOC")) verticals.add("knowledge");
+  if (p.includes("/video") || t.includes("VIDEO")) verticals.add("video");
+
+  return [...verticals];
+}
+
+function inferSchemas(filePath, tag, region) {
+  const p = normalize(filePath);
+  const t = (tag || "").toUpperCase();
+  const r = (region || "").toUpperCase();
+  const schemas = new Set(["SoftwareApplication","SoftwareSourceCode"]);
+
+  if (p.endsWith("index.html") || r.includes("CORE")) schemas.add("Organization");
+  if (p.includes("/pricing") || t.includes("PRICING")) schemas.add("Offer");
+  if (p.includes("/learning") || t.includes("LEARNING")) schemas.add("Course");
+  if (p.includes("/faq") || t.includes("FAQ")) schemas.add("FAQPage");
+  if (p.includes("/contact")) schemas.add("ContactPage");
+
+  return [...schemas];
+}
+
+function inferAnalyticsKeys(filePath, tag) {
+  const p = normalize(filePath);
+  const t = (tag || "").toUpperCase();
+  const keys = new Set(["seo:*","voice:*","cta:*"]);
+
+  if (p.includes("/pricing") || t.includes("PRICING")) keys.add("conversion:*");
+  if (p.includes("/learning") || t.includes("LEARNING")) keys.add("retention:*");
+  if (p.includes("/animations") || t.includes("SHOWCASE")) keys.add("feature:*");
+
+  return [...keys];
+}
+
+export function buildDiscoveryLines({ filePath, tag, region, discoveryConfig }) {
+  const publicSurface = isPublicSurface(filePath, discoveryConfig);
+  const verticals = inferVerticals(filePath, tag);
+  const schemas = inferSchemas(filePath, tag, region);
+  const analytics = inferAnalyticsKeys(filePath, tag);
+
+  const base = [
+    "DISCOVERY_PIPELINE:",
+    "  MODEL=Voice>Intent>Location>Vertical>Ranking>Render;",
+    `  ROLE=${publicSurface ? "direct" : "support"};`,
+    `  INTENT_SCOPE=${publicSurface ? "mixed" : "n/a"};`,
+    `  LOCATION_DEP=${publicSurface ? "indirect" : "none"};`,
+    `  VERTICALS=${verticals.join(",")};`,
+    `  RENDER_SURFACE=${publicSurface ? "serp,assistant,in-app" : "in-app"};`
+  ];
+
+  if (publicSurface) {
+    base.push(
+      `  SCHEMAS=${schemas.join(",")};`,
+      "  VOICE_QA=enabled;",
+      `  ANALYTICS=${analytics.join(",")};`
+    );
+  }
+
+  base.push("  SPEC_REF=LEEWAY.v12.DiscoveryArchitecture");
+  return base.join("\n");
+}
+```
+
+### 8.7 Header Parser (with positions)
+
+```js
+// LEEWAY v12 Header Parser (canonical)
+
+export function indexToLineCol(content, index) {
+  if (index < 0) return { line: 1, col: 1 };
+  const slice = content.slice(0, index);
+  const lines = slice.split(/\r?\n/);
+  const line = lines.length;
+  const col = lines[lines.length - 1].length + 1;
+  return { line, col };
+}
+
+export function extractLeewayHeaderBlockWithPos(content) {
+  if (!content || typeof content !== "string") return null;
+
+  const markerIndex = content.indexOf("LEEWAY HEADER");
+  if (markerIndex === -1) return null;
+
+  const openCandidates = [
+    { token: "/*", close: "*/" },
+    { token: "<!--", close: "-->" }
+  ];
+
+  let openIndex = -1;
+  let opener = null;
+
+  for (const c of openCandidates) {
+    const idx = content.lastIndexOf(c.token, markerIndex);
+    if (idx > openIndex) {
+      openIndex = idx;
+      opener = c;
+    }
+  }
+
+  if (openIndex === -1 || !opener) return null;
+
+  const closeIndex = content.indexOf(opener.close, markerIndex);
+  if (closeIndex === -1) return null;
+
+  const endIndex = closeIndex + opener.close.length;
+
+  return {
+    block: content.slice(openIndex, endIndex),
+    startIndex: openIndex,
+    endIndex,
+    openToken: opener.token,
+    closeToken: opener.close
+  };
+}
+
+export function parseTagFromHeaderBlock(headerBlock) {
+  if (!headerBlock) return { tag: null, tagLineIndex: -1 };
+  const lines = headerBlock.split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*TAG:\s*([A-Z0-9_.]+)\s*$/);
+    if (m) return { tag: m[1].trim(), tagLineIndex: i };
+  }
+  return { tag: null, tagLineIndex: -1 };
+}
+
+export function parseRegionFromHeaderBlock(headerBlock) {
+  if (!headerBlock) return null;
+  const lines = headerBlock.split(/\r?\n/);
+
+  for (const line of lines) {
+    const m = line.match(/^\s*REGION:\s*(.+)\s*$/);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
+export function parseLeewayLdObjectFromHeaderBlock(headerBlock) {
+  if (!headerBlock) return { obj: null, startLineIndex: -1 };
+
+  const lines = headerBlock.split(/\r?\n/);
+  let start = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes("LEEWAY-LD:")) { start = i; break; }
+  }
+  if (start === -1) return { obj: null, startLineIndex: -1 };
+
+  let jsonText = "";
+  const sameLine = lines[start];
+  const bracePos = sameLine.indexOf("{");
+  if (bracePos !== -1) jsonText += sameLine.slice(bracePos) + "\n";
+
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*5WH:/.test(line)) break;
+    if (/^\s*SPDX-License-Identifier:/.test(line)) break;
+    if (line.includes("============================================================================")) break;
+
+    if (jsonText.length > 0 || line.includes("{")) jsonText += line + "\n";
+  }
+
+  const trimmed = jsonText.trim();
+  if (!trimmed.startsWith("{")) return { obj: null, startLineIndex: start };
+
+  try { return { obj: JSON.parse(trimmed), startLineIndex: start }; }
+  catch { return { obj: null, startLineIndex: start }; }
+}
+
+export function parseIdentifierFromLeewayLd(leewayLdObj) {
+  if (!leewayLdObj) return null;
+  const id = leewayLdObj.identifier;
+  return typeof id === "string" ? id.trim() : null;
+}
+
+export function hasDiscoveryPipelineBlock(headerBlock) {
+  if (!headerBlock) return false;
+  return headerBlock.includes("DISCOVERY_PIPELINE:");
+}
+
+export function parseLeewayHeader(content) {
+  const extracted = extractLeewayHeaderBlockWithPos(content);
+  if (!extracted) {
+    return {
+      ok: false,
+      reason: "Missing LEEWAY HEADER block.",
+      headerBlock: null,
+      startIndex: -1,
+      endIndex: -1,
+      tag: null,
+      region: null,
+      leewayLd: null,
+      identifier: null,
+      hasDiscoveryPipeline: false
+    };
+  }
+
+  const { block, startIndex, endIndex } = extracted;
+  const { tag } = parseTagFromHeaderBlock(block);
+  const region = parseRegionFromHeaderBlock(block);
+
+  const ldParsed = parseLeewayLdObjectFromHeaderBlock(block);
+  const leewayLd = ldParsed.obj;
+  const identifier = parseIdentifierFromLeewayLd(leewayLd);
+
+  return {
+    ok: true,
+    reason: null,
+    headerBlock: block,
+    startIndex,
+    endIndex,
+    tag,
+    region,
+    leewayLd,
+    identifier,
+    hasDiscoveryPipeline: hasDiscoveryPipelineBlock(block)
+  };
+}
+```
+
+---
+
+## 9. Default Config Template (Canonical)
+
+AI tools may create this file if missing:
+
+```json
+{
+  "profile": "LEEWAY-ORDER",
+
+  "tags": {
+    "strictMode": true,
+    "enforceSubdomainAllowlist": true,
+    "requireIdentifierMatch": true
+  },
+
+  "discovery": {
+    "requireStubInAllFiles": true,
+
+    "publicSurfaces": {
+      "enabled": true,
+      "patterns": [
+        "index.html",
+        "src/pages/**",
+        "src/routes/**",
+        "src/public/**",
+        "src/marketing/**",
+        "src/seo/**",
+        "docs/standards/**",
+        "docs/**/public/**"
+      ],
+      "requireExpandedFields": [
+        "SCHEMAS",
+        "VOICE_QA",
+        "ANALYTICS"
+      ]
+    }
+  },
+
+  "regions": {
+    "enabled": true,
+    "requireRegionLine": true,
+    "allowlist": [
+      "🟢 CORE",
+      "🔴 SEO",
+      "🔵 UI",
+      "🟣 MCP",
+      "🧠 AI",
+      "💾 DATA",
+      "🟠 UTIL",
+      "🟡 PY"
+    ],
+    "folderBindings": [
+      { "match": "src/seo", "region": "🔴 SEO" },
+      { "match": "src/analytics", "region": "🟠 UTIL" },
+      { "match": "src/ai", "region": "🧠 AI" },
+      { "match": "src/mcp", "region": "🟣 MCP" },
+      { "match": "src/data", "region": "💾 DATA" },
+      { "match": "src/core", "region": "🟢 CORE" },
+      { "match": "src/ui", "region": "🔵 UI" },
+      { "match": "tools", "region": "🟠 UTIL" },
+      { "match": "docs", "region": "🟢 CORE" }
+    ]
+  },
+
+  "score": {
+    "minBronze": 70,
+    "minSilver": 85,
+    "minGold": 95
+  },
+
+  "scan": {
+    "includeExtensions": [".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".md", ".json"],
+    "excludeDirs": ["node_modules", ".git", "dist", "build", "out", ".next", ".cache"]
+  }
+}
+```
+
+---
+
+## 10. CLI Reference Stubs (Embedded)
+
+These are canonical behavior descriptions.
+Implementations MAY be split into files as you already outlined:
+
+* leeway-init
+* leeway-fix
+* leeway-audit
+* leeway-public-report
+
+This monolith defines expected compliance semantics:
+
+1. init creates baseline governance docs/config
+2. fix inserts/patches headers safely
+3. audit scores and fails CI under strictMode
+4. public-report lists public surfaces + expanded discovery status
+
+---
+
+## 11. Operational Guarantees
+
+### 11.1 Safe Autofix Rules
+
+Autofix MUST:
+
+* Add missing headers for supported comment file types.
+* Avoid rewriting application logic.
+* Avoid deep JSON-LD mutation beyond identifier alignment.
+* Insert minimal or builder-generated discovery blocks.
+* Respect public surface escalation rules.
+
+### 11.2 CI Rule
+
+If strictMode is true:
+
+* Any header missing OR invalid TAG OR identifier mismatch OR missing discovery stub
+  MUST fail CI.
+
+---
+
+## 12. End of Canonical Monolith
+
+This file is the canonical seed for LEEWAY v12.
+Extend only by publishing a new monolith:
+LEEWAY_V13_MONOLITH.md
+
+```
+
+---
+
+## How to use this effectively
+
+1) Place the file in your repo:
+```
+
+.leeway/LEEWAY_V12_MONOLITH.md
+
+````
+
+2) Optionally add a short pointer at root (helps both humans and AI):
+**`LEEWAY.md`**
+```md
+This repo is governed by:
+.leeway/LEEWAY_V12_MONOLITH.md
+````
+
+3. Have your AI tooling search for:
+
+* `LEEWAY™ v12 — Monolithic Governance + Tooling Spec`
+* The machine-readable JSON bundle section
+
+4. Treat this as **the single source of truth** for:
+
+* header formats
+* tag grammar
+* regions
+* discovery rules
+* public surfaces escalation
+
+-

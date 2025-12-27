@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stable Diffusion Smoke Test</title>
+</head>
+<body>
+<script type="module">
+import { runFetchSmoke } from "./model-fetch-smoke.js";
+try {
+  const out = await runFetchSmoke({ modelId: "onnx-community_stable-diffusion-v1-5", maxFiles: 6 });
+  console.log("SMOKE_OK:SD_FETCH", out);
+  document.body.textContent = "SMOKE_OK:SD_FETCH";
+} catch (e) {
+  console.error("SMOKE_FAIL:SD_FETCH", e);
+  document.body.textContent = "SMOKE_FAIL:SD_FETCH " + (e?.message || e);
+  throw e;
+}
+</script>
+</body>
+</html>

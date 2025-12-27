@@ -1,0 +1,34 @@
+/* ============================================================================
+   LEEWAY HEADER — DO NOT REMOVE
+   PROFILE: LEEWAY-ORDER
+   TAG: AI.ORCHESTRATION.MODEL.LOADER
+   REGION: 🟢 CORE
+   VERSION: 1.0.0
+   ============================================================================
+   ModelDiagnostics.css
+   
+   DISCOVERY_PIPELINE:
+     MODEL=Voice>Intent>Location>Vertical>Ranking>Render;
+     ROLE=support;
+     INTENT_SCOPE=n/a;
+     LOCATION_DEP=none;
+     VERTICALS=n/a;
+     RENDER_SURFACE=in-app;
+     SPEC_REF=LEEWAY.v12.DiscoveryArchitecture
+
+   SPDX-License-Identifier: MIT
+   ============================================================================ */
+
+.model-diag { padding: 12px; }
+.model-diag .diag-header { display:flex; justify-content:space-between; align-items:center; }
+.model-diag .diag-row { border-bottom: 1px solid #eee; padding: 8px 0; }
+.model-diag .diag-key { font-weight: 600; }
+.model-diag .checks { display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
+.model-diag .check { padding:4px 8px; border-radius:4px; }
+.model-diag .check.ok { background: #e6ffed; }
+.model-diag .check.missing { background: #ffe6e6; }
+.model-diag .check .file { font-size:12px; }
+.model-diag .check .status { font-size:12px; opacity:0.8; }
+.model-diag .result { margin-top:6px; }
+.model-diag .result.ok { color: green; }
+.model-diag .result.missing { color: red; }

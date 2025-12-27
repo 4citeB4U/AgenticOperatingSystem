@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLM Smoke Test</title>
+</head>
+<body>
+<script type="module">
+import { runFetchSmoke } from "./model-fetch-smoke.js";
+try {
+  const out = await runFetchSmoke({ modelId: "onnx-community_Qwen2.5-0.5B-Instruct", maxFiles: 4 });
+  console.log("SMOKE_OK:QWEN", out);
+  document.body.textContent = "SMOKE_OK:QWEN";
+} catch (e) {
+  console.error("SMOKE_FAIL:QWEN", e);
+  document.body.textContent = "SMOKE_FAIL:QWEN " + (e?.message || e);
+  throw e;
+}
+</script>
+</body>
+</html>

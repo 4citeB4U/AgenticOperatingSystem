@@ -1,0 +1,102 @@
+/* ============================================================================
+   LEEWAY HEADER — DO NOT REMOVE
+   PROFILE: LEEWAY-ORDER
+   TAG: CORE.APP.COMPONENT.MAIN
+   REGION: 🟢 CORE
+   VERSION: 1.0.0
+   ============================================================================
+   Chevrons.css
+   
+   DISCOVERY_PIPELINE:
+     MODEL=Voice>Intent>Location>Vertical>Ranking>Render;
+     ROLE=support;
+     INTENT_SCOPE=n/a;
+     LOCATION_DEP=none;
+     VERTICALS=n/a;
+     RENDER_SURFACE=in-app;
+     SPEC_REF=LEEWAY.v12.DiscoveryArchitecture
+
+   SPDX-License-Identifier: MIT
+   ============================================================================ */
+
+/* Styles for Chevrons component - gold pyramids that close at 100% */
+.chevrons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+
+.chevron {
+  width: 48px;
+  text-align: center;
+  font-family: sans-serif;
+}
+
+.chevron-svg {
+  display: block;
+  margin: 0 auto;
+}
+.half {
+  transition: transform 420ms cubic-bezier(.2,.9,.2,1);
+  transform-origin: 24px 30px;
+}
+
+/* Vertical open/close: top moves up, bottom moves down */
+.chevron.open .half.top {
+  transform: translateY(-12px);
+}
+.chevron.open .half.bottom {
+  transform: translateY(12px);
+}
+
+.chevron.almost .half.top {
+  transform: translateY(-6px);
+}
+.chevron.almost .half.bottom {
+  transform: translateY(6px);
+}
+
+.chevron.closed .half.top,
+.chevron.closed .half.bottom {
+  transform: translateY(0);
+}
+
+/* Base triangle reveal */
+.base-triangle .base-fill { transition: opacity 300ms ease, transform 300ms cubic-bezier(.2,.9,.2,1); transform-origin: 24px 30px; }
+.chevron.open .base-fill { opacity: 0; transform: scale(0.98); }
+.chevron.almost .base-fill { opacity: 0.2; transform: scale(0.99); }
+.chevron.closed .base-fill { opacity: 1; transform: scale(1); }
+
+.indicator {
+  stroke: #b37f00;
+  stroke-width: 1;
+  transition: fill 320ms ease, r 220ms ease;
+}
+.chevron.open .indicator { fill: #3b3b3b; r:4; }
+.chevron.almost .indicator { fill: #bda16b; r:4.5; }
+.chevron.closed .indicator { fill: #e6a800; r:6; }
+
+/* Gold glow when closed */
+.chevron.closed .chevron-svg { filter: drop-shadow(0 0 10px rgba(255,211,107,0.9)) drop-shadow(0 2px 6px rgba(180,120,0,0.6)); }
+
+/* Ensure pyramids are upright and centered */
+.half path { vector-effect: non-scaling-stroke; }
+
+.chevron-label {
+  font-size: 10px;
+  color: #ffd57a;
+  margin-top: 6px;
+  font-weight: 700;
+}
+.chevron-sub {
+  font-size: 9px;
+  color: #ffd57a;
+  opacity: 0.85;
+}
+
+/* wrapper used by App.tsx to position chevrons in the header */
+.chevrons-wrapper {
+  display: flex;
+  align-items: center;
+}

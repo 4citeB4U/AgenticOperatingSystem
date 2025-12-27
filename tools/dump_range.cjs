@@ -1,0 +1,1 @@
+const fs=require('fs'); const start=parseInt(process.argv[2],10)||1; const end=parseInt(process.argv[3],10)||start; const s=fs.readFileSync('src/App.tsx','utf8'); const lines=s.split(/\r?\n/); for(let i=start-1;i<end && i<lines.length;i++){ console.log((i+1)+':', lines[i]); console.log('  CHARS:', Array.from(lines[i]).map(c=>c.charCodeAt(0)).join(',')); }

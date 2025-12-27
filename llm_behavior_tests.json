@@ -1,0 +1,7 @@
+{
+  "prompt": "Hello",
+  "name": "basic",
+  "mustContain": [
+    "Hello"
+  ]
+}

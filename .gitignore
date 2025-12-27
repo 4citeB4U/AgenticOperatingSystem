@@ -1,0 +1,70 @@
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+# Vite/React/TypeScript builds and distribution
+
+# ignore dist and server-side rendering output
+# You can unignore a subfolder if you need to keep some assets
+# (e.g., dist/keepme/)
+dist/
+dist-ssr/
+build/
+.vite/
+.cache/
+*.tsbuildinfo
+
+# Capacitor/native build artifacts
+android/app/build/
+ios/build/
+*.apk
+*.ipa
+
+# Test and coverage output
+coverage/
+
+# Environment and local config files
+.env
+.env.local
+.env.*.local
+*.local
+# Keep example env files
+!.env.example
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Visual Studio and JetBrains IDE artifacts
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS-specific artifacts
+.DS_Store
+Thumbs.db
+
+# Local model and runtime artifacts (do not commit large binaries)
+public/models/
+public/onnx/
+public/transformers/
+public/models_OLD*/
+
+# Optional: ignore compiled AI model packs or wasm assets if you store them elsewhere
+# Remove the comments to enable these rules
+#public/models/
+#public/ort/

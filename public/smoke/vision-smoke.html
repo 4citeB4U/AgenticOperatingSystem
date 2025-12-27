@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vision Smoke Test</title>
+</head>
+<body>
+<script type="module">
+import { runFetchSmoke } from "./model-fetch-smoke.js";
+try {
+  const out = await runFetchSmoke({ modelId: "Xenova_vit-tiny-patch16-224", maxFiles: 4 });
+  console.log("SMOKE_OK:VIT", out);
+  document.body.textContent = "SMOKE_OK:VIT";
+} catch (e) {
+  console.error("SMOKE_FAIL:VIT", e);
+  document.body.textContent = "SMOKE_FAIL:VIT " + (e?.message || e);
+  throw e;
+}
+</script>
+</body>
+</html>

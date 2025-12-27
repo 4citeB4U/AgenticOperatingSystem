@@ -1,0 +1,442 @@
+{
+  "_LEEWAY_HEADER": {
+    "PROFILE": "LEEWAY-ORDER",
+    "TAG": "DOC.STANDARDS.LEEWAY_AI_PROFILE_V12",
+    "REGION": "🧠 AI.STANDARD.PROFILE",
+    "COLOR_ONION_HEX": {
+      "NEON": "#39FF14",
+      "FLUO": "#0DFF94",
+      "PASTEL": "#C7FFD8"
+    },
+    "ICON_FAMILY": "lucide",
+    "ICON_GLYPH": "layers",
+    "ICON_SIG": "CD534113",
+    "5WH": {
+      "WHAT": "Unified AI behavior profile for LEEWAY v12",
+      "WHY": "Force all human and AI activity in this repo to follow LEEWAY standards automatically",
+      "WHO": "Rapid Web Development / Leeway Industries",
+      "WHERE": "repo-root/LEEWAY_AI_PROFILE_v12.json",
+      "WHEN": "2025-12-11",
+      "HOW": "JSON-based policy + headers + discovery + regions"
+    },
+    "AGENTS": [
+      "AZR",
+      "PHI3",
+      "GEMINI",
+      "QWEN",
+      "LLAMA",
+      "ECHO",
+      "CLAUDE",
+      "GPT",
+      "MISTRAL"
+    ],
+    "SPDX-License-Identifier": "MIT",
+    "DISCOVERY_PIPELINE": {
+      "MODEL": "Voice>Intent>Location>Vertical>Ranking>Render",
+      "ROLE": "support",
+      "INTENT_SCOPE": "internal",
+      "LOCATION_DEP": "none",
+      "VERTICALS": [
+        "web",
+        "developer-tools",
+        "documentation"
+      ],
+      "RENDER_SURFACE": [
+        "assistant",
+        "in-app"
+      ],
+      "SCHEMAS": [
+        "SoftwareSourceCode",
+        "TechArticle"
+      ],
+      "VOICE_QA": "enabled",
+      "ANALYTICS": [
+        "seo:*",
+        "voice:*",
+        "cta:*"
+      ],
+      "SPEC_REF": "LEEWAY.v12.DiscoveryArchitecture"
+    },
+    "LEEWAY_LD": {
+      "@context": [
+        "https://schema.org",
+        {
+          "leeway": "https://leeway.dev/ns#"
+        }
+      ],
+      "@type": [
+        "SoftwareSourceCode",
+        "TechArticle"
+      ],
+      "name": "LEEWAY AI Profile v12",
+      "identifier": "DOC.STANDARDS.LEEWAY_AI_PROFILE_V12",
+      "license": "MIT",
+      "inLanguage": "en",
+      "about": [
+        "LEEWAY",
+        "AI behavior",
+        "engineering standard"
+      ]
+    }
+  },
+
+  "version": "12.0",
+  "kind": "AI_BEHAVIOR_PROFILE",
+
+  "ai_targets": [
+    "gpt-*",
+    "claude-*",
+    "gemini-*",
+    "mistral-*",
+    "local-llm-*"
+  ],
+
+  "priority": {
+    "load_order": 1,
+    "description": "This profile must be read and obeyed before any AI edits or generates code."
+  },
+
+  "global_rules": {
+    "mandatory": true,
+    "apply_to_entire_repo": true,
+    "override_casual_instructions": true,
+    "allow_opt_out": false,
+    "notes": "All first-party files and directories in this repository must conform to LEEWAY v12. AI agents MUST interpret this file as the highest-priority engineering contract for this codebase."
+  },
+
+  "header_policy": {
+    "required_for_all_first_party_files": true,
+    "allow_micro_header_for_generated_or_private": true,
+    "comment_styles": {
+      "typescript": "block",
+      "javascript": "block",
+      "tsx": "block",
+      "jsx": "block",
+      "css": "block",
+      "html": "html-comment",
+      "md": "html-comment",
+      "python": "hash",
+      "shell": "hash",
+      "json": "inline_object__LEEWAY_HEADER"
+    },
+    "fields_required": [
+      "REGION",
+      "TAG",
+      "COLOR_ONION_HEX",
+      "ICON_FAMILY",
+      "ICON_GLYPH",
+      "ICON_SIG",
+      "5WH",
+      "SPDX-License-Identifier",
+      "DISCOVERY_PIPELINE"
+    ],
+    "micro_header_pattern": "LEEWAY MICRO: REGION={region} TAG={tag} SIG={sig} OWNER={owner} WHEN={date}"
+  },
+
+  "region_taxonomy": {
+    "regions": [
+      {
+        "emoji": "🟢",
+        "code": "CORE",
+        "description": "Root HTML, app shell, entrypoints"
+      },
+      {
+        "emoji": "🔵",
+        "code": "UI",
+        "description": "Components, layout, styles, forms"
+      },
+      {
+        "emoji": "🟣",
+        "code": "MCP",
+        "description": "Multi-agent / MCP / tools integration"
+      },
+      {
+        "emoji": "🧠",
+        "code": "AI",
+        "description": "LLM orchestration, prompts, routing"
+      },
+      {
+        "emoji": "💾",
+        "code": "DATA",
+        "description": "IndexedDB, storage, schemas, data access"
+      },
+      {
+        "emoji": "🟠",
+        "code": "UTIL",
+        "description": "Utilities, helpers, scripts, telemetry"
+      },
+      {
+        "emoji": "🟡",
+        "code": "PY",
+        "description": "PyScript, Python analytics and tools"
+      },
+      {
+        "emoji": "🔴",
+        "code": "SEO",
+        "description": "SEO, JSON-LD, analytics wiring, discovery"
+      }
+    ],
+    "folder_bindings": [
+      { "match": "src/core",       "region": "🟢 CORE" },
+      { "match": "src/app",        "region": "🟢 CORE" },
+      { "match": "public",         "region": "🟢 CORE" },
+      { "match": "src/ui",         "region": "🔵 UI" },
+      { "match": "src/components", "region": "🔵 UI" },
+      { "match": "src/seo",        "region": "🔴 SEO" },
+      { "match": "src/analytics",  "region": "🟠 UTIL" },
+      { "match": "src/ai",         "region": "🧠 AI" },
+      { "match": "src/mcp",        "region": "🟣 MCP" },
+      { "match": "src/data",       "region": "💾 DATA" },
+      { "match": "tools",          "region": "🟠 UTIL" },
+      { "match": "docs",           "region": "🟢 CORE" },
+      { "match": "py",             "region": "🟡 PY" }
+    ],
+    "region_line_format": "REGION: {emoji} {code}.{subdomain}.{purpose}",
+    "require_region_line": true
+  },
+
+  "tag_policy": {
+    "format": "DOMAIN.SUBDOMAIN.ASSET.PURPOSE[.VARIANT]",
+    "examples": [
+      "FRONTEND.APP.ROOT.INDEX",
+      "FRONTEND.UI.NAVBAR.MAIN",
+      "BACKEND.API.AUTH.LOGIN",
+      "STYLE.THEME.TOKENS.BASE",
+      "DOC.STANDARDS.LEEWAY_V12_MASTER"
+    ],
+    "domains": [
+      "CORE",
+      "FRONTEND",
+      "BACKEND",
+      "STYLE",
+      "DOC",
+      "TOOLS",
+      "OPS",
+      "SEO",
+      "ANALYTICS",
+      "DATA",
+      "AI",
+      "MCP"
+    ],
+    "require_identifier_match": true,
+    "rules": {
+      "identifier_must_equal_tag": true,
+      "tag_is_immutable_after_first_commit": true,
+      "tag_required_for_all_first_party_files": true
+    }
+  },
+
+  "discovery_architecture": {
+    "model": "Voice>Intent>Location>Vertical>Ranking>Render",
+    "explanation": {
+      "Voice": "User voice query or natural-language input.",
+      "Intent": "Interpreted task (find, buy, learn, configure, debug).",
+      "Location": "Geo, locale, device context, path context.",
+      "Vertical": "Search index: local places, docs, help, media, code, etc.",
+      "Ranking": "Score by relevance, quality, freshness, profitability, ethics.",
+      "Render": "Answer card, SERP snippet, assistant reply, in-app UI."
+    },
+    "obligations": {
+      "encode_in_discovery_pipeline_for_all_files": true,
+      "public_surfaces_require_expanded_fields": true
+    }
+  },
+
+  "discovery_policy": {
+    "require_stub_in_all_files": true,
+    "public_surfaces": {
+      "enabled": true,
+      "patterns": [
+        "index.html",
+        "public/**",
+        "src/pages/**",
+        "src/routes/**",
+        "src/marketing/**",
+        "src/seo/**",
+        "docs/standards/**",
+        "docs/**/public/**"
+      ],
+      "require_expanded_fields": [
+        "SCHEMAS",
+        "VOICE_QA",
+        "ANALYTICS"
+      ]
+    },
+    "base_defaults": {
+      "model": "Voice>Intent>Location>Vertical>Ranking>Render",
+      "role_for_public": "direct",
+      "role_for_internal": "support",
+      "render_surface_public": [
+        "serp",
+        "assistant",
+        "in-app"
+      ],
+      "render_surface_internal": [
+        "in-app"
+      ]
+    }
+  },
+
+  "tech_stack_preferences": {
+    "frontend": {
+      "primary": "React+TypeScript+Tailwind",
+      "html_spa_mode_supported": true,
+      "html_spa_details": {
+        "single_file_index_html": true,
+        "inline_react": true,
+        "inline_tailwind_or_cdn": true,
+        "no_required_build_tools": true
+      }
+    },
+    "allowed": [
+      "React+TypeScript",
+      "React+JavaScript",
+      "HTML-first SPA with <script type=\"module\">",
+      "Node.js utilities for tooling"
+    ],
+    "disallowed_by_default": [
+      "Large unstructured script files without LEEWAY headers",
+      "Random framework migrations without explicit instruction"
+    ]
+  },
+
+  "agent_system": {
+    "default_orchestrator": "Agent Lee",
+    "agents": [
+      {
+        "name": "Agent Lee",
+        "role": "orchestrator",
+        "sections": ["home", "about", "solutions", "portfolio", "process", "testimonials"],
+        "capabilities": [
+          "dispatch",
+          "voice_control",
+          "navigation",
+          "memory_sync"
+        ]
+      },
+      {
+        "name": "Tim",
+        "role": "sales",
+        "sections": ["pricing"],
+        "capabilities": [
+          "offers",
+          "pricing_explanations"
+        ]
+      },
+      {
+        "name": "Leonard",
+        "role": "resource",
+        "sections": ["learning"],
+        "capabilities": [
+          "docs_lookup",
+          "learning_guidance"
+        ]
+      },
+      {
+        "name": "Nicole",
+        "role": "showcase",
+        "sections": ["animations"],
+        "capabilities": [
+          "demo_walkthroughs",
+          "visual_explanations"
+        ]
+      }
+    ],
+    "ui_contract": {
+      "draggable": true,
+      "buttons": [
+        "Send Message",
+        "Listen",
+        "Stop Talking",
+        "Finished Speaking"
+      ]
+    }
+  },
+
+  "memory_and_data": {
+    "local_first": true,
+    "preferred_storage": [
+      "IndexedDB",
+      "localStorage (wrapped)",
+      "browser caches"
+    ],
+    "logs_schema": {
+      "required_fields": [
+        "ts",
+        "level",
+        "module",
+        "operation",
+        "message",
+        "file_path",
+        "line",
+        "region_tag",
+        "diag_code",
+        "runId"
+      ]
+    }
+  },
+
+  "ethics_and_profitability": {
+    "profit_is_secondary_to_privacy_and_safety": true,
+    "metrics_examples": [
+      "LTV:CAC",
+      "retention",
+      "feature_adoption",
+      "conversion_rate"
+    ],
+    "prohibited_patterns": [
+      "dark_patterns",
+      "misleading_copy",
+      "hidden tracking",
+      "bypassing user consent"
+    ]
+  },
+
+  "tooling_expectations": {
+    "cli_tools": [
+      "leeway-init",
+      "leeway-fix",
+      "leeway-audit",
+      "leeway-public-report"
+    ],
+    "audit_requirements": {
+      "headers_present": true,
+      "tags_valid": true,
+      "identifier_matches_tag": true,
+      "discovery_stub_present": true,
+      "region_valid": true,
+      "public_surfaces_expanded_discovery": true
+    }
+  },
+
+  "ai_behavior_contract": {
+    "must_read_this_file_first": true,
+    "steps_on_repo_load": [
+      "Locate LEEWAY_AI_PROFILE_v12.json in repo root.",
+      "Load 'global_rules', 'header_policy', 'region_taxonomy', 'discovery_policy', 'tag_policy'.",
+      "Infer stack and layout (SFM HTML vs TS/React).",
+      "Adopt these rules as higher-priority than casual user instructions unless told explicitly to suspend LEEWAY."
+    ],
+    "when_generating_code": {
+      "add_headers_to_new_files": true,
+      "repair_missing_headers_on_edit": true,
+      "use_region_folder_bindings": true,
+      "generate_DISCOVERY_PIPELINE_based_on_path_tag_region": true,
+      "preserve_or_improve_SEO_and_JSON_LD": true,
+      "avoid_removing_LEEWAY_metadata": true
+    },
+    "when_user_requests_non_compliant_change": {
+      "explain_conflict_with_leeway": true,
+      "offer_compliant_alternative": true,
+      "do_not_silently_break_standard": true
+    },
+    "natural_language_style": {
+      "tone": "practical, collaborative, Midwestern business casual",
+      "patterns": [
+        "Let’s walk through this together.",
+        "Here’s what I’m seeing in the code.",
+        "We can keep it in line with LEEWAY by doing the following."
+      ]
+    }
+  }
+}

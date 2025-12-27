@@ -1,0 +1,62 @@
+/* ============================================================================
+   LEEWAY HEADER — DO NOT REMOVE
+   PROFILE: LEEWAY-ORDER
+   TAG: CORE.APP.COMPONENT.MAIN
+   REGION: 🟢 CORE
+   VERSION: 1.0.0
+   ============================================================================
+   MemoryLake.css
+   
+   DISCOVERY_PIPELINE:
+     MODEL=Voice>Intent>Location>Vertical>Ranking>Render;
+     ROLE=support;
+     INTENT_SCOPE=n/a;
+     LOCATION_DEP=none;
+     VERTICALS=n/a;
+     RENDER_SURFACE=in-app;
+     SPEC_REF=LEEWAY.v12.DiscoveryArchitecture
+
+   SPDX-License-Identifier: MIT
+   ============================================================================ */
+
+:root {
+  /* Drive color tokens generated from DRIVE_COLORS constant */
+}
+
+.drive-color-LEE { color: #ffffff; }
+.drive-bg-LEE { background-color: #ffffff; }
+.drive-border-LEE { border-color: #ffffff; }
+
+.drive-color-N { color: #d8b4fe; }
+.drive-bg-N { background-color: #d8b4fe; }
+.drive-border-N { border-color: #d8b4fe; }
+
+.drive-color-A { color: #f472b6; }
+.drive-bg-A { background-color: #f472b6; }
+.drive-border-A { border-color: #f472b6; }
+
+.drive-color-R { color: #fb923c; }
+.drive-bg-R { background-color: #fb923c; }
+.drive-border-R { border-color: #fb923c; }
+
+.drive-color-O { color: #fbbf24; }
+.drive-bg-O { background-color: #fbbf24; }
+.drive-border-O { border-color: #fbbf24; }
+
+.drive-color-L { color: #22d3ee; }
+.drive-bg-L { background-color: #22d3ee; }
+.drive-border-L { border-color: #22d3ee; }
+
+.drive-color-E { color: #facc15; }
+.drive-bg-E { background-color: #facc15; }
+.drive-border-E { border-color: #facc15; }
+
+.drive-color-D { color: #4ade80; }
+.drive-bg-D { background-color: #4ade80; }
+.drive-border-D { border-color: #4ade80; }
+
+/* small helpers to ensure drive-bg-* works on tiny elements */
+.drive-bg-LEE, .drive-bg-N, .drive-bg-A, .drive-bg-R, .drive-bg-O, .drive-bg-L, .drive-bg-E, .drive-bg-D { color: inherit; }
+
+/* border color utility may need higher specificity in some places */
+[class*="drive-border-"] { border-color: inherit; }
