@@ -19,8 +19,20 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 
-// ORT (onnxruntime-web) WASM source
-const ortSrcDir = path.resolve(ROOT, "node_modules", "onnxruntime-web", "dist");
+// ORT (onnxruntime-web) WASM source - try common install locations
+const ortCandidates = [
+  path.resolve(ROOT, "node_modules", "onnxruntime-web", "dist"),
+  path.resolve(ROOT, "node_modules", "onnxruntime-web", "lib"),
+  path.resolve(ROOT, "node_modules", "onnxruntime-web", "lib", "wasm"),
+  path.resolve(ROOT, "node_modules", "onnxruntime-web", "dist", "wasm"),
+];
+let ortSrcDir = null;
+for (const c of ortCandidates) {
+  if (fs.existsSync(c)) {
+    ortSrcDir = c;
+    break;
+  }
+}
 // ORT destination served statically
 const ortDestDir = path.resolve(ROOT, "public", "onnx");
 
@@ -64,8 +76,8 @@ function copyByExt(srcDir, destDir, exts) {
 console.log("=== LEEWAY: Copy WASM Assets ===");
 
 // 1) Copy ORT wasm
-if (!fs.existsSync(ortSrcDir)) {
-  console.error("ORT source dir not found:", ortSrcDir);
+if (!ortSrcDir) {
+  console.error("ORT source dir not found. Tried:", ortCandidates.join(', '));
   process.exit(1);
 }
 ensureDir(ortDestDir);

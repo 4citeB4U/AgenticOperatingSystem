@@ -27,6 +27,8 @@
 </head>
 <body>
   <div id="root"></div>
+  <!-- Load ONNX Runtime ESM via Vite alias so dev server resolves node_modules -->
+  <script type="module" src="/onnx/ort.wasm.mjs"></script>
   <script type="module" src="./index.tsx"></script>
 </body>
 </html>

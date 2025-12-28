@@ -94,6 +94,9 @@ export default defineConfig(({ mode }: { mode: string }): UserConfig => {
         // them as modules instead of treating them as /public assets.
         '/onnx': resolve(__dirname, 'node_modules/onnxruntime-web/dist'),
         '/onnx/': resolve(__dirname, 'node_modules/onnxruntime-web/dist') + '/',
+        // Support legacy /models/onnx/ paths used by some patched packages
+        '/models/onnx': resolve(__dirname, 'node_modules/onnxruntime-web/dist'),
+        '/models/onnx/': resolve(__dirname, 'node_modules/onnxruntime-web/dist') + '/',
       },
     },
 
@@ -122,7 +125,16 @@ export default defineConfig(({ mode }: { mode: string }): UserConfig => {
       rollupOptions: {
         // Suppress EVAL warnings coming from prebuilt ORT bundles
         // (these are expected in third-party minified libs and safe to ignore)
-        external: ['onnxruntime-web'],
+        external: (id) => {
+          if (!id) return false;
+          // Keep package externalization
+          if (id === 'onnxruntime-web') return true;
+          // Treat public-served ORT/transformers assets as external so Rollup
+          // does not attempt to resolve them during build (they are copied
+          // to /public and served as static files).
+          if (typeof id === 'string' && (id.startsWith('/models/onnx/') || id.startsWith('/models/') || id.startsWith('/transformers/') || id.startsWith('/models/onnx'))) return true;
+          return false;
+        },
         onwarn(warning: import('rollup').RollupLog, warn: (warning: import('rollup').RollupLog) => void) {
           try {
             // fall through to default warn

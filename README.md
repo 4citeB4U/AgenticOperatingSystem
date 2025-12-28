@@ -50,6 +50,7 @@
 - [x] **Modern UI/UX** (single-file monolith, operator-first design)
 - [x] **Open Source** (MIT License, community-driven)
 
+
 **Recent Improvements:**
 
 - Enhanced **artifact lineage** and mistake learning for RAG
@@ -62,6 +63,39 @@
 - Improved **event-driven Lake Bus** for real-time module sync
 
 ---
+
+**Developer Notes: ONNX Runtime & Build Changes (Simple Explanation)**
+
+We made a few build and runtime changes to make local model inference (ONNX Runtime
+Web) work reliably with Vite and the browser. Here's what happened and what to do.
+
+- Why the change: ONNX Runtime ships some files as ESM modules and WebAssembly files
+  that must be served as static assets. Vite sometimes tries to transform files in
+  `public/` which breaks those runtime files. To avoid that, we now handle ORT files
+  carefully during dev and build.
+
+- What we changed (short):
+  - We copy ORT wasm and ESM files into `public/models/onnx/` at build time (`tools/copy_wasm.cjs`).
+  - The app loads the ORT module in a way Vite expects (via the `/onnx/` alias or a script tag).
+  - `src/runtime/ortBootstrap.ts` sets ORT's `wasmPaths` to `/models/onnx/` so the runtime finds the `.wasm` files.
+  - We patch `@xenova/transformers` (during `npm install`) so it uses dynamic imports rather than static imports that break Vite.
+  - `vite.config.ts` contains aliases and settings to keep wasm files as real assets and avoid inlining.
+
+- What this means for you (high school explanation):
+  - Think of ORT like a toolbox with heavy tools stored outside the main app. The build copies the toolbox into the public folder. The app points to that toolbox at runtime so it can use the tools.
+  - We avoid "importing" the toolbox into the app code directly because the build system would try to open the toolbox and break it. Instead we tell the browser where the toolbox lives and let the browser load it.
+
+- Common developer commands:
+  - Install: `npm install` (patches transformers for Vite)
+  - Dev server: `npm run dev` (copies wasm to `public/` then starts Vite)
+  - Build: `npm run build` (copies wasm, compiles TS, builds production)
+
+- Quick troubleshooting:
+  - If you see a Vite overlay complaining about `/models/onnx/*.mjs` being imported from `/public`, make sure `index.html` loads ORT using the `/onnx/` alias or a plain `<script src="/models/onnx/ort.wasm.mjs"></script>` tag (we already set this up).
+  - If transformers cause issues, re-run `npm install` so the `tools/patch_xenova_transformers.cjs` runs and applies dynamic import patches.
+  - If the build fails with locked files, stop Node processes and remove the locked file in `dist/`, then re-run the build.
+
+If you'd like, I can add a tiny `docs/ONNX.md` with step-by-step developer checks and screenshots.
 
 ## 🚦 Quick Start
 

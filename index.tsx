@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { HashRouter } from 'react-router-dom';
 import App from './src/App';
 import './src/polyfills';
 // Include FontAwesome CSS so legacy <i class="fas ..."> icons render correctly
@@ -14,6 +15,8 @@ if (!container) {
 const root = createRoot(container);
 root.render(
   <React.StrictMode>
-    <App />
+    <HashRouter>
+      <App />
+    </HashRouter>
   </React.StrictMode>
 );

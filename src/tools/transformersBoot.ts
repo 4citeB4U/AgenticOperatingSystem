@@ -31,7 +31,7 @@ export async function initTransformersBoot() {
 
   // Optional overrides from .env.local (useful for debugging / GH Pages)
   const modelsPath = (import.meta as any).env?.VITE_MODELS_PATH || (baseSlash + "models/");
-  const onnxPath = (import.meta as any).env?.VITE_ONNX_PATH || (baseSlash + "onnx/");
+  const onnxPath = (import.meta as any).env?.VITE_ONNX_PATH || (baseSlash + "models/onnx/");
 
   // Normalize trailing slash
   const modelsBase = String(modelsPath).endsWith("/") ? String(modelsPath) : String(modelsPath) + "/";

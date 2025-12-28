@@ -26,6 +26,8 @@ import { AGENT_CONTROL } from './coreRegistry';
 import './EmailCenter.css';
 import { mlAdapter } from './memoryLakeAdapter';
 import { isAllowed } from './policyClient';
+import { globalTrashService } from './services/GlobalTrashService';
+import { FileType } from './SmartTrashSystem';
 // Lazy-load three and heavy postprocessing modules at runtime
 let THREE: any = null;
 let OrbitControls: any = null;
@@ -667,10 +669,42 @@ export const EmailCenter: React.FC<{ isOpen: boolean; onClose: () => void }> = (
   };
 
   const handleDeleteEmail = (id: string) => {
-    setEmails(prev => prev.map(e => e.id === id ? { ...e, isDeleted: true } : e));
-    setSelectedId(null);
-    agentRef.current?.pulse();
+    const toDelete = emails.find(e => e.id === id);
+    if (toDelete) {
+      // Add to global trash with payload for restore
+      globalTrashService.addItem({
+        name: `Email: ${toDelete.subject || 'No Subject'}`,
+        originalPath: `/Emails/${toDelete.senderEmail || 'unknown'}`,
+        size: JSON.stringify(toDelete).length,
+        type: FileType.DOC,
+        contentSnippet: toDelete.body || toDelete.analysis?.summary || '',
+        importanceScore: 0.7,
+        aiReason: 'Email moved to trash',
+        verdict: 'Review First',
+        category: 'email',
+        payload: toDelete
+      });
+      setEmails(prev => prev.map(e => e.id === id ? { ...e, isDeleted: true } : e));
+      setSelectedId(null);
+      agentRef.current?.pulse();
+    }
   };
+
+  // Register restore handler for emails
+  useEffect(() => {
+    globalTrashService.registerRestoreHandler('email', async (item) => {
+      try {
+        const payload = (item as any).payload as Email | null;
+        if (!payload) return false;
+        // Restore email into mailbox (mark not deleted)
+        setEmails(prev => [ { ...payload, isDeleted: false }, ...prev.filter(e => e.id !== payload.id) ]);
+        return true;
+      } catch (e) {
+        console.warn('[EmailCenter] Restore failed', e);
+        return false;
+      }
+    });
+  }, []);
 
   const triggerPreview = (dataUrl: string, name: string, type: string = 'unknown') => {
     agentRef.current?.pulse();

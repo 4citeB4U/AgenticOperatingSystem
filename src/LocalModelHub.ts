@@ -174,24 +174,35 @@ class LocalModelHubClass {
   }
 
   async ensureLoaded(core: string) {
+    console.log(`[LocalModelHub] ensureLoaded called for core: ${core}`);
     if (this.pipelines[core]) return this.pipelines[core];
-    if (this.loaders[core]) return this.loaders[core];
+    if (this.loaders[core]) {
+      console.log(`[LocalModelHub] Loader already exists for ${core}, returning existing loader`);
+      return this.loaders[core];
+    }
 
     const cfg = this.getCfg(core);
+    console.log(`[LocalModelHub] Config for ${core}:`, cfg);
 
     if (cfg.type === 'vision_multi') {
+      console.log(`[LocalModelHub] Using vision loader for ${core}`);
       return this.ensureVisionLoaded(core);
     }
 
+    console.log(`[LocalModelHub] Loading transformers for ${core}...`);
     const mod = await loadTransformers();
     hardenTransformersEnv(mod);
 
+    console.log(`[LocalModelHub] Detecting hardware for ${core}...`);
     const device = await this.detectHardware();
+    console.log(`[LocalModelHub] Detected device: ${device}`);
+    
     const pipelineFn = mod?.pipeline;
     if (!pipelineFn) throw new Error('Transformers pipeline unavailable');
 
     const modelFolderId = String(cfg.repo || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
     const fullModelPath = `${BASE_MODELS_URL}${modelFolderId}`;
+    console.log(`[LocalModelHub] Model path: ${fullModelPath}`);
 
     const task =
       cfg.type === 'embed'
@@ -199,6 +210,8 @@ class LocalModelHubClass {
         : (cfg.type === 'llm'
             ? 'text-generation'
             : 'image-to-text');
+
+    console.log(`[LocalModelHub] Task: ${task}`);
 
     const pipelineOpts: any = { device, local_files_only: true };
 

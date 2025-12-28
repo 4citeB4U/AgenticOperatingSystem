@@ -27,6 +27,8 @@ import { ColdArchiveEntry, coldStore, CorruptionStatus, DriveId, neuralDB, Neura
 import { LocalModelHub } from './LocalModelHub';
 import './MemoryLake.css';
 import { mlAdapter } from './memoryLakeAdapter';
+import { globalTrashService } from './services/GlobalTrashService';
+import { FileType } from './SmartTrashSystem';
 
 const DRIVE_COLORS: Record<DriveId, string> = {
     "LEE": "#ffffff", "N": "#d8b4fe", "A": "#f472b6", "R": "#fb923c",
@@ -413,6 +415,24 @@ const MemoryLakeCore = forwardRef<AgentLeeRef, { onExit?: () => void }>(({ onExi
         return () => AGENT_CONTROL.unregister('MemoryLake');
     }, []);
 
+        // Register restore handler for memory items
+        useEffect(() => {
+            globalTrashService.registerRestoreHandler('memory', async (item) => {
+                try {
+                    const payload = (item as any).payload;
+                    if (!payload || !payload.id) return false;
+                    // Reinsert into neuralDB (assume payload shape matches NeuralFile)
+                    await neuralDB.addFile(payload);
+                    await loadFiles();
+                    refreshSlotCounts();
+                    return true;
+                } catch (e) {
+                    console.warn('[MemoryLake] restore handler failed', e);
+                    return false;
+                }
+            });
+        }, [loadFiles, refreshSlotCounts]);
+
   useEffect(() => {
       const interval = setInterval(() => setTick(t => t+1), 100);
       return () => clearInterval(interval);
@@ -523,7 +543,22 @@ const MemoryLakeCore = forwardRef<AgentLeeRef, { onExit?: () => void }>(({ onExi
 
   const handleDelete = async () => {
       if (!activeFile) return;
-      await neuralDB.deleteFile(activeFile.id);
+            try {
+                // Add to global trash first so it can be restored
+                globalTrashService.addItem({
+                    name: activeFile.name || 'Unknown',
+                    originalPath: activeFile.path || '/',
+                    size: (activeFile as any).sizeBytes || 0,
+                    type: FileType.DATA,
+                    contentSnippet: typeof activeFile.content === 'string' ? activeFile.content.substring(0, 200) : 'Binary content',
+                    importanceScore: 0.5,
+                    aiReason: 'Deleted from Memory Lake',
+                    verdict: 'Review First',
+                    category: 'memory',
+                    payload: activeFile
+                });
+            } catch (e) { console.warn('Failed to add to global trash', e); }
+            await neuralDB.deleteFile(activeFile.id);
       await loadFiles();
       refreshSlotCounts();
       setActiveFile(null);

@@ -19,7 +19,6 @@
    SPDX-License-Identifier: MIT
    ============================================================================ */
 
-import { GoogleGenAI, Modality } from "@google/genai";
 import {
     Activity,
     AlertCircle,
@@ -41,11 +40,12 @@ import {
     X,
     Zap
 } from 'lucide-react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AGENT_CONTROL } from './coreRegistry';
 import { mlAdapter } from './memoryLakeAdapter';
-import { isAllowed } from './policyClient';
 import './SystemSettings.css';
+import { useWebSpeechTTS } from './voice/useWebSpeechTTS';
+import { loadVoiceConfig, updateVoiceConfig } from './voice/voiceStore';
 
 /* ==================================================================================
  * 1. TYPES & INTERFACES
@@ -221,190 +221,32 @@ async function decodeAudioData(
  * 4. HOOKS
  * ================================================================================== */
 
+// Use the unified WebSpeech runtime hook. This wrapper preserves the original
+// small API shape expected by the SystemSettings UI but delegates to the
+// single source-of-truth runtime in src/voice/useWebSpeechTTS.ts
 const useTTS = () => {
-  const [availableRawVoices, setAvailableRawVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [speaking, setSpeaking] = useState(false);
-  const [loading, setLoading] = useState(false);
-  
-  // Refs for Web Audio API (GenAI)
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
-  const filterNodeRef = useRef<BiquadFilterNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
+  const { speak, stop, isSpeaking, voices, refreshVoices, resolved } = useWebSpeechTTS();
 
-  // Initialize GenAI
-  const genAI = useRef<GoogleGenAI | null>(null);
-
-  useEffect(() => {
-    // Do not read API keys from environment in the browser build.
-    if (isAllowed('GENAI_TTS')) {
-      console.warn('[POLICY] Remote GenAI TTS allowed by policy, but no API key is available in the client. Remote TTS remains disabled.');
-    }
-
-    const loadVoices = () => {
-      const allVoices = window.speechSynthesis.getVoices();
-      setAvailableRawVoices(allVoices);
-    };
-
-    loadVoices();
-    if (window.speechSynthesis.onvoiceschanged !== undefined) {
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
-
-    return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-    };
-  }, []);
-
-  // Update DSP parameters in real-time when settings change while playing
-  const updateDSP = useCallback((settings: VoiceSettings) => {
-    if (audioContextRef.current && sourceNodeRef.current && filterNodeRef.current && gainNodeRef.current) {
-        const ctx = audioContextRef.current;
-        const now = ctx.currentTime;
-        
-        // RATE
-        sourceNodeRef.current.playbackRate.cancelScheduledValues(now);
-        sourceNodeRef.current.playbackRate.linearRampToValueAtTime(settings.rate, now + 0.1);
-
-        // PITCH (Detune)
-        const detuneValue = (settings.pitch - 1) * 1200;
-        sourceNodeRef.current.detune.cancelScheduledValues(now);
-        sourceNodeRef.current.detune.linearRampToValueAtTime(detuneValue, now + 0.1);
-
-        // TONE (Filter Cutoff)
-        const minFreq = 500;
-        const maxFreq = 16000;
-        const frequency = minFreq * Math.pow(maxFreq / minFreq, settings.tone / 100);
-        
-        filterNodeRef.current.frequency.cancelScheduledValues(now);
-        filterNodeRef.current.frequency.exponentialRampToValueAtTime(frequency, now + 0.1);
-
-        // VOLUME
-        gainNodeRef.current.gain.cancelScheduledValues(now);
-        gainNodeRef.current.gain.linearRampToValueAtTime(settings.volume, now + 0.1);
-    }
-  }, []);
-
-  const speak = useCallback(async (text: string, targetVoice: VoiceOption, settings: VoiceSettings) => {
-    // STOP PREVIOUS
-    window.speechSynthesis.cancel();
-    if (sourceNodeRef.current) {
-        try { sourceNodeRef.current.stop(); } catch(e) {}
-        sourceNodeRef.current.disconnect();
-    }
-    setSpeaking(false);
-    setLoading(true);
-
-    // MODE 1: GOOGLE GENAI (High Fidelity) - guarded by policy
-    if (targetVoice.genAiVoice && genAI.current && isAllowed('GENAI_TTS')) {
-        try {
-            const response = await genAI.current.models.generateContent({
-                model: "gemini-2.5-flash-preview-tts",
-                contents: [{ parts: [{ text: text }] }],
-                config: {
-                  responseModalities: [Modality.AUDIO],
-                  speechConfig: {
-                      voiceConfig: {
-                        prebuiltVoiceConfig: { voiceName: targetVoice.genAiVoice },
-                      },
-                  },
-                },
-            });
-
-            const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-            if (!base64Audio) throw new Error("No audio data returned");
-
-            if (!audioContextRef.current) {
-                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 24000});
-            }
-            const ctx = audioContextRef.current;
-
-            const audioBuffer = await decodeAudioData(
-                decode(base64Audio),
-                ctx,
-                24000,
-                1,
-            );
-
-            const source = ctx.createBufferSource();
-            source.buffer = audioBuffer;
-            const filter = ctx.createBiquadFilter();
-            filter.type = "lowpass";
-            const gain = ctx.createGain();
-
-            source.connect(filter);
-            filter.connect(gain);
-            gain.connect(ctx.destination);
-
-            sourceNodeRef.current = source;
-            filterNodeRef.current = filter;
-            gainNodeRef.current = gain;
-
-            updateDSP(settings);
-
-            source.start();
-            setSpeaking(true);
-            setLoading(false);
-
-            source.onended = () => setSpeaking(false);
-
-        } catch (error) {
-            console.error("GenAI TTS Error:", error);
-            setLoading(false);
-            // Fallback to local
-            speakLocal(text, targetVoice, settings);
-        }
-        return;
-    }
-
-    // MODE 2: LOCAL FALLBACK
-    speakLocal(text, targetVoice, settings);
-    setLoading(false);
-
-  }, [availableRawVoices, updateDSP]);
-
-  const speakLocal = (text: string, targetVoice: VoiceOption, settings: VoiceSettings) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // INTELLIGENT MATCHING
-    let selectedVoice = availableRawVoices.find(v => v.voiceURI === targetVoice.voiceURI);
-    
-    if (!selectedVoice) selectedVoice = availableRawVoices.find(v => v.name.includes(targetVoice.name));
-    if (!selectedVoice) {
-       const targetLang = targetVoice.lang.split('-')[0];
-       selectedVoice = availableRawVoices.find(v => {
-           const vOpt = analyzeVoice(v);
-           return v.lang.startsWith(targetLang) && vOpt.gender === targetVoice.gender;
-       });
-    }
-    if (!selectedVoice) selectedVoice = availableRawVoices.find(v => v.lang.startsWith(targetVoice.lang.split('-')[0]));
-
-    if (selectedVoice) utterance.voice = selectedVoice;
-
-    utterance.pitch = settings.pitch;
-    utterance.rate = settings.rate;
-    utterance.volume = settings.volume;
-
-    utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
-
-    window.speechSynthesis.speak(utterance);
+  // keep a no-op updateDSP for compatibility with the tuner UI
+  const updateDSP = (_settings: VoiceSettings) => {
+    // WebSpeech cannot apply DSP chains; DSP is a no-op in local path.
+    // This preserves the signature so existing UI calls remain valid.
   };
 
-  const stop = useCallback(() => {
-    window.speechSynthesis.cancel();
-    if (sourceNodeRef.current) {
-        try { sourceNodeRef.current.stop(); } catch(e) {}
-        sourceNodeRef.current.disconnect();
-    }
-    setSpeaking(false);
-    setLoading(false);
-  }, []);
-
-  return { speak, stop, speaking, loading, updateDSP };
+  return {
+    speak: (text: string, targetVoice?: VoiceOption, settings?: VoiceSettings) => {
+      // use the runtime speak; runtime resolves voices & tuning from store
+      // if caller provided targetVoice/settings, we pass the text only — the
+      // runtime reads current store config which SystemSettings updates.
+      return speak(text);
+    },
+    stop: () => stop(),
+    speaking: isSpeaking,
+    loading: false,
+    updateDSP,
+    // expose lower-level utilities if needed by debugging UI
+    _internal: { voices, refreshVoices, resolved }
+  };
 };
 
 /* ==================================================================================
@@ -625,18 +467,40 @@ const NeuralVoiceTuner: React.FC<NeuralVoiceTunerProps> = ({
 
   useEffect(() => {
     if (speaking) updateDSP(settings);
+    // persist tuning to unified voice store
+    try { updateVoiceConfig({ tuning: settings }); } catch {}
     if (onConfigChange) onConfigChange({ voice: selectedVoice, settings, browser: selectedBrowser });
   }, [settings, speaking, updateDSP, selectedVoice, selectedBrowser, onConfigChange]);
 
   useEffect(() => {
     const voices = BROWSER_PRESETS[selectedBrowser] || BROWSER_PRESETS[BrowserType.CHROME];
     setDisplayedVoices(voices);
+    // hydrate from store if available
+    try {
+      const cfg = loadVoiceConfig();
+      if (cfg?.profile?.pinnedVoiceURI) {
+        const match = voices.find(v => v.voiceURI === cfg.profile.pinnedVoiceURI);
+        if (match) {
+          setSelectedVoice(match);
+          setSettings((prev) => ({ ...prev, ...cfg.tuning }));
+          return;
+        }
+      }
+    } catch {}
     if (voices.length > 0) setSelectedVoice(voices[0]);
   }, [selectedBrowser]);
 
   const handlePlay = () => {
     if (!selectedVoice) return;
     speak(text, selectedVoice, settings);
+  };
+
+  const handleVoiceSelect = (voice: VoiceOption) => {
+    setSelectedVoice(voice);
+    try {
+      updateVoiceConfig({ profile: { pinnedVoiceURI: voice.voiceURI, nameHints: [voice.name], langFull: voice.lang } });
+    } catch {}
+    if (onConfigChange) onConfigChange({ voice, settings, browser: selectedBrowser });
   };
 
   const voiceRings: TunerRingConfig[] = [
@@ -681,8 +545,8 @@ const NeuralVoiceTuner: React.FC<NeuralVoiceTunerProps> = ({
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 h-64 overflow-y-auto pr-2 custom-scrollbar">
                 {displayedVoices.map((voice) => (
                 <button
-                    key={voice.voiceURI}
-                    onClick={() => setSelectedVoice(voice)}
+                  key={voice.voiceURI}
+                  onClick={() => handleVoiceSelect(voice)}
                     className={`text-left p-3 rounded-lg border transition-all duration-200 group relative overflow-hidden ${selectedVoice?.voiceURI === voice.voiceURI ? 'bg-[rgba(0,255,255,0.1)] border-[#00ffff] shadow-[0_0_10px_rgba(0,255,255,0.1)]' : 'bg-black/50 border-gray-800 hover:border-gray-600'}`}
                 >
                     <div className="flex items-center justify-between mb-2">

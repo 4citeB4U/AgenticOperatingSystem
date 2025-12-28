@@ -25,6 +25,8 @@ import './CommunicationsOutlet.css';
 import { AGENT_CONTROL } from './coreRegistry';
 import { mlAdapter } from './memoryLakeAdapter';
 import { isAllowed } from './policyClient';
+import { globalTrashService } from './services/GlobalTrashService';
+import { FileType } from './SmartTrashSystem';
 
 // ===================================================================================
 //  CONFIG & SERVICES
@@ -530,7 +532,7 @@ const VideoCallModal = ({ isOpen, onClose, contacts, onCall }: any) => {
 
 // --- CONTACTS MODAL ---
 
-const ContactsModal = ({ isOpen, onClose, contacts, onAction, onAddContact }: any) => {
+const ContactsModal = ({ isOpen, onClose, contacts, onAction, onAddContact, onDeleteContact }: any) => {
     const [selectedContact, setSelectedContact] = useState<number | null>(null);
 
     if (!isOpen) return null;
@@ -576,7 +578,7 @@ const ContactsModal = ({ isOpen, onClose, contacts, onAction, onAddContact }: an
                                  <i className={`fas fa-chevron-down text-slate-500 transition-transform ${isSelected ? 'rotate-180' : ''}`}></i>
                              </div>
                              
-                             <div className={`grid grid-cols-4 gap-1 px-2 bg-slate-950/50 transition-all duration-300 ease-in-out ${isSelected ? 'max-h-20 py-2 border-t border-slate-700' : 'max-h-0 py-0 opacity-0 overflow-hidden'}`}>
+                             <div className={`grid grid-cols-5 gap-1 px-2 bg-slate-950/50 transition-all duration-300 ease-in-out ${isSelected ? 'max-h-20 py-2 border-t border-slate-700' : 'max-h-0 py-0 opacity-0 overflow-hidden'}`}>
                                  <button onClick={() => onAction('phone', contact)} className="flex flex-col items-center gap-1 py-1 hover:bg-slate-800 rounded-lg group">
                                      <div className="w-8 h-8 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center group-hover:bg-green-500 group-hover:text-white transition-colors"><i className="fas fa-phone"></i></div>
                                      <span className="text-[10px] text-slate-400">Call</span>
@@ -592,6 +594,10 @@ const ContactsModal = ({ isOpen, onClose, contacts, onAction, onAddContact }: an
                                  <button onClick={() => onAction('voicemail', contact)} className="flex flex-col items-center gap-1 py-1 hover:bg-slate-800 rounded-lg group">
                                      <div className="w-8 h-8 rounded-full bg-orange-500/20 text-orange-500 flex items-center justify-center group-hover:bg-orange-500 group-hover:text-white transition-colors"><i className="fas fa-voicemail"></i></div>
                                      <span className="text-[10px] text-slate-400">Voice</span>
+                                 </button>
+                                 <button onClick={() => onDeleteContact?.(contact)} className="flex flex-col items-center gap-1 py-1 hover:bg-slate-800 rounded-lg group">
+                                     <div className="w-8 h-8 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center group-hover:bg-red-500 group-hover:text-white transition-colors"><i className="fas fa-trash-alt"></i></div>
+                                     <span className="text-[10px] text-slate-400">Delete</span>
                                  </button>
                              </div>
                         </div>
@@ -1038,24 +1044,62 @@ const MessagesTab = ({ onAskAI, files, onUpload }: { onAskAI: (prompt: string) =
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, showMedia]);
 
-  const handleSend = (text: string = input, attachment?: any) => {
+    const handleSend = async (text: string = input, attachment?: any) => {
     if (!text.trim() && !attachment) return;
-    setMessages([...messages, { 
-        id: Date.now(), 
-        sender: 'me', 
-        text: text, 
-        time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-        media: attachment 
-    }]);
+        const newMsg = { 
+                id: Date.now().toString(), 
+                sender: 'me', 
+                text: text, 
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                media: attachment 
+        };
+        const updated = [...messages, newMsg];
+        setMessages(updated);
     setInput('');
     setShowMedia(false);
         try {
             // Persist message into Memory Lake as a communications artifact
-            mlAdapter.putFile('communications/messages/', `message_${Date.now()}`, { sender: 'me', text, time: new Date().toISOString(), media: attachment });
+                        mlAdapter.putFile('communications/messages/', `message_${Date.now()}`, { sender: 'me', text, time: new Date().toISOString(), media: attachment });
+                        // Also attempt to save the entire conversation into the current Drive/Slot as a conversation file
+                        try {
+                            const env = await AGENT_CONTROL.call('App', 'getCurrentDriveSlot');
+                            const title = `comm-${env.selectedDrive || 'L'}-${env.selectedSlot || 1}-${Date.now()}`;
+                            await AGENT_CONTROL.call('App', 'saveConversationFromComms', { title, messages: updated, existingId: null });
+                        } catch (e) {
+                            // best-effort, not fatal
+                            console.warn('[CommunicationsOutlet] saveConversationFromComms failed', e);
+                        }
         } catch (e) {
             console.warn('Failed to persist message to Memory Lake', e);
         }
   };
+
+    // Register restore handler for messages
+    useEffect(() => {
+        try {
+            globalTrashService.registerRestoreHandler('messages', async (item: any) => {
+                if (!item || !item.payload) return false;
+                const payload = item.payload as any;
+                // reinstate message into UI and persist
+                setMessages(prev => {
+                    const nn = [...prev, payload.message];
+                    (async () => {
+                        try {
+                            const env = await AGENT_CONTROL.call('App', 'getCurrentDriveSlot');
+                            const title = `comm-restore-${env.selectedDrive || 'L'}-${env.selectedSlot || 1}-${Date.now()}`;
+                            await AGENT_CONTROL.call('App', 'saveConversationFromComms', { title, messages: nn, existingId: null });
+                        } catch (e) { console.warn('restore persist failed', e); }
+                    })();
+                    return nn;
+                });
+                return true;
+            });
+        } catch (e) {
+            console.warn('Failed to register messages restore handler', e);
+        }
+    }, []);
+
+    // NOTE: contact restore handler registered at CommunicationsOutlet level
 
   const handleDraft = async () => {
       setDrafting(true);
@@ -1125,10 +1169,10 @@ const MessagesTab = ({ onAskAI, files, onUpload }: { onAskAI: (prompt: string) =
   return (
     <div className="h-full flex flex-col bg-slate-950">
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${msg.sender === 'me' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'}`}>
-              <p>{msg.text}</p>
+                {messages.map((msg, idx) => (
+                    <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${msg.sender === 'me' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'}`}>
+                            <p>{msg.text}</p>
               {msg.media && (
                   <div className="mt-2 rounded-lg overflow-hidden bg-black/20">
                      {msg.media.type === 'image' && <img src={msg.media.url} alt={msg.media.name || 'attachment'} className="max-w-full h-auto rounded-lg" />}
@@ -1143,6 +1187,25 @@ const MessagesTab = ({ onAskAI, files, onUpload }: { onAskAI: (prompt: string) =
                   </div>
               )}
               <span className={`text-[10px] mt-1 block text-right ${msg.sender === 'me' ? 'text-blue-200' : 'text-slate-500'}`}>{msg.time}</span>
+                            <div className="flex gap-2 mt-1 justify-end">
+                                <button aria-label="Delete message" title="Delete message" onClick={() => {
+                                    // soft-delete into global trash
+                                    try {
+                                        globalTrashService.addItem({
+                                                name: msg.text?.slice(0, 60) || 'Message',
+                                                originalPath: 'communications/messages',
+                                                size: 0,
+                                                type: FileType.OTHER,
+                                                category: 'messages',
+                                                payload: { message: msg, index: idx }
+                                            });
+                                    } catch (e) { console.warn('Failed to add message to trash', e); }
+                                    // remove locally
+                                    setMessages(prev => prev.filter(m => m.id !== msg.id));
+                                }} className="text-xs text-slate-400 hover:text-red-400 px-2 py-1 rounded">
+                                    <i className="fas fa-trash"></i>
+                                </button>
+                            </div>
             </div>
           </div>
         ))}
@@ -1508,6 +1571,20 @@ const CommunicationsOutlet = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
     const handleAddContact = (newContact: any) => {
         setContacts([...contacts, { ...newContact, id: Date.now(), status: 'offline' }]);
     }
+    const handleDeleteContact = (contact: any) => {
+        try {
+            globalTrashService.addItem({
+                name: contact.name || 'Contact',
+                originalPath: 'communications/contacts',
+                size: 0,
+                type: FileType.OTHER,
+                category: 'contact',
+                payload: contact
+            });
+        } catch (e) { console.warn('Failed to add contact to trash', e); }
+        setContacts(prev => prev.filter(c => c.id !== contact.id));
+        try { mlAdapter.putEvent('agent/actions/comms/', `delete_contact_${Date.now()}`, { contactId: contact.id }); } catch {}
+    }
     
     const handleContactAction = (action: string, contact: any) => {
         if (action === 'phone') {
@@ -1558,6 +1635,24 @@ const CommunicationsOutlet = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
             return () => AGENT_CONTROL.unregister('CommunicationsOutlet');
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [contacts, files]);
+
+        // Register contact restore handler at component level (has access to setContacts)
+        useEffect(() => {
+            try {
+                globalTrashService.registerRestoreHandler('contact', async (item: any) => {
+                    if (!item || !item.payload) return false;
+                    const payload = item.payload as any;
+                    setContacts(prev => {
+                        if (prev.find(p => p.id === payload.id)) return prev;
+                        return [...prev, payload];
+                    });
+                    try { await mlAdapter.putEvent('agent/actions/comms/', `restore_contact_${Date.now()}`, { contactId: payload.id }); } catch {}
+                    return true;
+                });
+            } catch (e) {
+                console.warn('Failed to register contact restore handler', e);
+            }
+        }, []);
 
     if (!isOpen) return null;
 
@@ -1679,6 +1774,7 @@ const CommunicationsOutlet = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
                 onAddContact={() => {
                     setShowContactsModal(false);
                 }}
+                onDeleteContact={(c: any) => { handleDeleteContact(c); setShowContactsModal(false); }}
             />
 
             <style>{`

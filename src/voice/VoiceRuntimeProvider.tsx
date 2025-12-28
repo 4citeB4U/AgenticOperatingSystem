@@ -40,11 +40,14 @@ export function VoiceRuntimeProvider(props: { children: React.ReactNode }) {
     try {
       const win: any = window as any;
       win.__AGENTLEE_SPEAKER__ = api.say;
+      // expose the full runtime for non-React consumers
+      win.__AGENTLEE_VOICE_RUNTIME__ = api;
     } catch {}
     return () => {
       try {
         const win: any = window as any;
         if (win.__AGENTLEE_SPEAKER__) delete win.__AGENTLEE_SPEAKER__;
+        if (win.__AGENTLEE_VOICE_RUNTIME__) delete win.__AGENTLEE_VOICE_RUNTIME__;
       } catch {}
     };
   }, [api]);

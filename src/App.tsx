@@ -44,12 +44,16 @@ import CommunicationsOutlet from './CommunicationsOutlet';
 import EmailCenter from './EmailCenter';
 import { LocalModelHub } from './LocalModelHub';
 import { MemoryLakeModal } from './MemoryLake';
+import SmartTrashSystem from './SmartTrashSystem';
 import { SettingsModal } from './SystemSettings';
 import { createToolRegistry } from './agent/tools/registry/registry';
 import { createCadClientKernel } from './ai/cad/cadClientKernel';
 import { createRagCore } from './ai/rag/ragCore';
+import { AGENT_CONTROL } from './coreRegistry';
 import { createIndexedDBStore } from './data/memoryLake/indexedDBStore';
+import { globalTrashService } from './services/GlobalTrashService';
 import { VoiceRuntimeProvider } from './voice/VoiceRuntimeProvider';
+import { registerVoiceTools } from './voice/voiceAgentControl';
 
 // THREE JS IMPORTS
 import * as THREE from 'three';
@@ -196,7 +200,15 @@ class MultiDriveFileSystem {
 
   async openSlot(driveId: string, slot: number): Promise<IDBDatabase> {
     const dbName = this.getDbName(driveId, slot);
-    if (this.activeConnections.has(dbName)) return this.activeConnections.get(dbName)!;
+        if (this.activeConnections.has(dbName)) {
+            const cached = this.activeConnections.get(dbName)!;
+            // Ensure cached DB has the required object stores (handles HMR/runtime upgrades)
+            const required = ['conversations', 'trash'];
+            const missing = required.some(s => !cached.objectStoreNames.contains(s));
+            if (!missing) return cached;
+            try { cached.close(); } catch (e) { /* ignore */ }
+            this.activeConnections.delete(dbName);
+        }
 
     return new Promise((resolve, reject) => {
         const req = indexedDB.open(dbName, 2); // Version 2 for Directories
@@ -427,21 +439,49 @@ class MultiDriveFileSystem {
 
   // Move a conversation into trash (soft-delete)
   async deleteFile(driveId: string, slot: number, fileId: string) {
-      const db = await this.openSlot(driveId, slot);
+      let db = await this.openSlot(driveId, slot);
       return new Promise<boolean>(async (resolve) => {
+          // Guard: ensure required object stores exist (handles stale DB refs)
+          if (!db.objectStoreNames.contains('conversations') || !db.objectStoreNames.contains('trash')) {
+              console.warn('[Drive] DB missing required object stores, attempting to reopen/upgrade DB', { driveId, slot, stores: Array.from(db.objectStoreNames) });
+              try { db.close(); } catch (e) {}
+              this.activeConnections.delete(this.getDbName(driveId, slot));
+              db = await this.openSlot(driveId, slot);
+          }
           const tx = db.transaction(['conversations', 'trash'], 'readwrite');
           const store = tx.objectStore('conversations');
-          const getReq = store.get(fileId);
-          getReq.onsuccess = () => {
-              const file = getReq.result;
-              if (!file) return resolve(false);
+          const attemptGet = (id: any) => new Promise<any>((res) => {
+              const r = store.get(id);
+              r.onsuccess = () => res(r.result);
+              r.onerror = () => res(null);
+          });
+
+          const file = await attemptGet(fileId) || await attemptGet(String(fileId)) || await attemptGet(Number(fileId));
+          if (!file) {
+              console.warn('[Drive] File not found for deletion (tried id variants):', fileId, typeof fileId);
+              // finish the transaction path so callers won't hang
+              tx.oncomplete = () => resolve(false);
+              tx.onerror = () => resolve(false);
+              return;
+          }
+          try {
               const trashStore = tx.objectStore('trash');
               const trashed = { ...file, _deleted_at: new Date().toISOString(), _origin: { driveId, slot } };
               trashStore.put(trashed);
-              store.delete(fileId);
+              // delete by the actual stored key (use file.id)
+              store.delete(file.id);
+              console.log('[Drive] File moved to trash:', file.id);
+          } catch (e) {
+              console.error('[Drive] Error while moving file to trash', e);
+          }
+          tx.oncomplete = () => {
+              console.log('[Drive] Delete transaction completed successfully');
+              resolve(true);
           };
-          tx.oncomplete = () => resolve(true);
-          tx.onerror = () => resolve(false);
+          tx.onerror = () => {
+              console.error('[Drive] Delete transaction failed');
+              resolve(false);
+          };
       });
   }
 
@@ -1141,8 +1181,17 @@ const AgentLeeBootScreen = ({ onInitialize }: { onInitialize: () => void }) => {
     detectSystem();
 
     // Pre-load logic for systems (Core/Vision)
-    LocalModelHub.load('QWEN').catch(console.error);
-    LocalModelHub.load('VISION').catch(console.error);
+    console.log('[ModelLoad] Starting pre-load of QWEN and VISION models...');
+    LocalModelHub.load('QWEN').then(() => {
+      console.log('[ModelLoad] QWEN model loaded successfully');
+    }).catch((error) => {
+      console.error('[ModelLoad] QWEN model failed to load:', error);
+    });
+    LocalModelHub.load('VISION').then(() => {
+      console.log('[ModelLoad] VISION model loaded successfully');
+    }).catch((error) => {
+      console.error('[ModelLoad] VISION model failed to load:', error);
+    });
   }, []);
 
   useEffect(() => {
@@ -1406,6 +1455,11 @@ const AgentLeeInterface = () => {
     const [consented, setConsented] = useState(false);
     const [leftOpen, setLeftOpen] = useState(true);
     const [rightOpen, setRightOpen] = useState(true);
+    
+    // Debug sidebar state changes
+    useEffect(() => {
+        console.log('[Sidebar] State changed - leftOpen:', leftOpen, 'rightOpen:', rightOpen);
+    }, [leftOpen, rightOpen]);
     // Removed leftView state as navigation is flattened
     const [messages, setMessages] = useState<{role:string, text:string, type?:string}[]>([]);
     const [input, setInput] = useState('');
@@ -1453,6 +1507,30 @@ const AgentLeeInterface = () => {
         return () => window.removeEventListener('voice-status', onVoiceStatus);
     }, []);
 
+    // Expose AgentControl handlers for other components (CommunicationsOutlet etc.)
+    useEffect(() => {
+        AGENT_CONTROL.register('App', {
+            getCurrentDriveSlot: async () => {
+                return { selectedDrive, selectedSlot, currentDirId, activeFileId };
+            },
+            saveConversationFromComms: async ({ title, messages, existingId }: any) => {
+                try {
+                    const res = await DriveSystem.saveConversation(selectedDrive, selectedSlot, title, messages, currentDirId, existingId);
+                    // Refresh explorer view (best-effort, non-blocking)
+                    loadSlotContent(selectedDrive, selectedSlot, currentDirId).catch(() => {});
+                    return res;
+                } catch (e) {
+                    console.warn('[App] saveConversationFromComms failed', e);
+                    throw e;
+                }
+            }
+        });
+
+        return () => {
+            AGENT_CONTROL.unregister('App');
+        };
+    }, [selectedDrive, selectedSlot, currentDirId, activeFileId]);
+
     // BOOT SEQUENCE HANDLER
     const handleBootInitialize = () => {
         // Enforce Zero-Egress Profile on Boot
@@ -1480,6 +1558,10 @@ const AgentLeeInterface = () => {
                 console.log('[AutoSave] activeFileId:', activeFileId, 'messages.length:', messages.length, 'title:', title, 'drive:', selectedDrive, 'slot:', selectedSlot, 'dir:', currentDirId);
                 // If we don't have an active file ID yet, create one from the first message
                 if (!activeFileId) {
+                    const now = new Date();
+                    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                    const firstMessage = messages[0]?.text || 'New Chat';
+                    const title = `${timestamp}_${firstMessage.slice(0, 30).replace(/[^a-zA-Z0-9\s]/g, '_')}`;
                     const result = await DriveSystem.saveConversation(selectedDrive, selectedSlot, title, messages, currentDirId);
                     // LOGGING PROBE 3: After Save
                     console.log('[AutoSave] save result:', result);
@@ -1607,14 +1689,16 @@ const AgentLeeInterface = () => {
     };
 
     const loadSlotContent = async (drive: string, slot: number, dirId: string | null) => {
+        console.log('[loadSlotContent] Starting load:', { drive, slot, dirId });
         setSelectedDrive(drive);
         setSelectedSlot(slot);
         setCurrentDirId(dirId);
         const content = await DriveSystem.listContent(drive, slot, dirId);
-        console.log('[Drive] listContent result', { drive, slot, dirId, count: (content.files || []).length });
+        console.log('[Drive] listContent result', { drive, slot, dirId, count: (content.files || []).length, files: content.files });
         // Sort files newest-first for UI consistency
         try {
             const files = Array.isArray(content.files) ? content.files.slice().sort((a,b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0)) : [];
+            console.log('[loadSlotContent] Setting current files:', files.length, files);
             setCurrentFiles(files);
             setCurrentDirs(Array.isArray(content.directories) ? content.directories : []);
         } catch (e) {
@@ -1647,15 +1731,16 @@ const AgentLeeInterface = () => {
     }
 
     const saveConversation = async () => {
-        const title = messages[0]?.text.slice(0, 30) || `Chat ${new Date().toLocaleTimeString()}`;
+        const now = new Date();
+        const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const firstMessage = messages[0]?.text || 'New Chat';
+        const title = `${timestamp}_${firstMessage.slice(0, 30).replace(/[^a-zA-Z0-9\s]/g, '_')}`;
         const res: any = await DriveSystem.saveConversation(selectedDrive, selectedSlot, title, messages, currentDirId);
         if (res && res.success) {
             await loadSlotContent(selectedDrive, selectedSlot, currentDirId);
             return true;
-        } else {
-            alert("Directory/Slot Full (Max 20).");
-            return false;
         }
+        return false;
     };
 
     const handleNewSession = async () => {
@@ -1688,31 +1773,40 @@ const AgentLeeInterface = () => {
 
     // Soft-delete (move to trash)
     const handleDelete = async (file: any) => {
+        console.log('[Delete] Starting delete for file:', file);
         if (!confirm(`Move "${file.title || 'untitled'}" to Trash?`)) return;
-        const ok = await DriveSystem.deleteFile(selectedDrive, selectedSlot, file.id);
-        if (ok) await loadSlotContent(selectedDrive, selectedSlot, currentDirId);
-    };
+        
+        // Add to global trash service
+        console.log('[Delete] Adding to global trash service');
+        try {
+            globalTrashService.addFileFromMemoryLake(file, `/Drive ${selectedDrive}/Slot ${selectedSlot}`);
 
-    // Trash modal state and helpers
-    const [showTrashModal, setShowTrashModal] = useState(false);
-    const [trashItems, setTrashItems] = useState<any[]>([]);
-    const openTrash = async () => {
-        const items = await DriveSystem.listTrash(selectedDrive, selectedSlot);
-        setTrashItems(items || []);
-        setShowTrashModal(true);
-    };
-    const restoreTrashItem = async (item: any) => {
-        const ok = await DriveSystem.restoreFile(selectedDrive, selectedSlot, item.id);
-        if (ok) {
-            setTrashItems(await DriveSystem.listTrash(selectedDrive, selectedSlot));
-            await loadSlotContent(selectedDrive, selectedSlot, currentDirId);
+            console.log('[Delete] Calling DriveSystem.deleteFile');
+            const ok = await DriveSystem.deleteFile(selectedDrive, selectedSlot, file.id);
+            console.log('[Delete] DriveSystem.deleteFile result:', ok);
+
+            if (ok) {
+                console.log('[Delete] Removing file from UI state');
+                setCurrentFiles(prev => prev.filter((f: any) => f.id !== file.id));
+                if (activeFileId === file.id) setActiveFileId(null);
+                // Try a reload; if it fails, UI already removed the file optimistically
+                try {
+                    await loadSlotContent(selectedDrive, selectedSlot, currentDirId);
+                } catch (e) {
+                    console.warn('[Delete] loadSlotContent failed after delete', e);
+                }
+            } else {
+                console.error('[Delete] DriveSystem.deleteFile returned false');
+                alert('Failed to move conversation to Trash. See console for details.');
+            }
+        } catch (e) {
+            console.error('[Delete] Exception during delete flow', e);
+            alert('An error occurred while deleting the file. Check console for details.');
         }
     };
-    const permDeleteItem = async (item: any) => {
-        if (!confirm('Permanently delete this item?')) return;
-        await DriveSystem.permanentlyDeleteFile(selectedDrive, selectedSlot, item.id);
-        setTrashItems(await DriveSystem.listTrash(selectedDrive, selectedSlot));
-    };
+
+    // Smart Trash System state
+    const [showTrashSystem, setShowTrashSystem] = useState(false);
 
     return (
         <div className="h-[100dvh] w-screen bg-[#050505] text-gray-200 font-sans overflow-hidden relative">
@@ -1763,10 +1857,10 @@ const AgentLeeInterface = () => {
             <div className={`absolute inset-0 z-10 flex pointer-events-none transition-opacity duration-1000 ${consented?'opacity-100':'opacity-0'}`}>
                 
                 {/* 1. LEFT PANEL */}
-                <div className={`${leftOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-80 bg-[#0a0a0a] border-r border-gray-800 transition-transform duration-300 md:relative md:translate-x-0 md:transition-[width] md:${leftOpen ? 'w-80' : 'w-0'} flex flex-col overflow-hidden shrink-0 pointer-events-auto shadow-2xl`}>
+                <div className={`fixed inset-y-0 left-0 z-50 bg-[#0a0a0a] border-r border-gray-800 transition-all duration-300 md:relative flex flex-col overflow-hidden shrink-0 pointer-events-auto shadow-2xl ${leftOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full'} md:translate-x-0`}>
                         <div className="p-4 border-b border-gray-800 flex items-center justify-between">
                         <div className="font-bold text-cyan-500 tracking-wider">AGENT LEE</div>
-                        <button onClick={()=>setLeftOpen(false)} title="Close sidebar" aria-label="Close sidebar" className="text-gray-500 hover:text-white"><PanelLeftClose size={18}/></button>
+                        <button onClick={()=>{console.log('[Sidebar] Closing left panel'); setLeftOpen(false);}} title="Close sidebar" aria-label="Close sidebar" className="text-gray-500 hover:text-white"><PanelLeftClose size={18}/></button>
                     </div>
                     
                     {/* CHAT LIST HEADER (Simplified) */}
@@ -1827,9 +1921,9 @@ const AgentLeeInterface = () => {
                             <div className="text-gray-700 mt-1">A Leeway Industries Product</div>
                         </div>
                         <div className="p-3 border-t border-gray-800">
-                            <button onClick={openTrash} className="w-full flex items-center gap-2 p-3 rounded-lg bg-gray-800 border border-gray-700 hover:bg-gray-700 hover:text-white hover:border-red-500 text-xs text-gray-400 transition-all group">
+                            <button onClick={() => { console.log('[Trash] Button clicked, opening trash system'); setShowTrashSystem(true); }} className="w-full flex items-center gap-2 p-3 rounded-lg bg-gray-800 border border-gray-700 hover:bg-gray-700 hover:text-white hover:border-red-500 text-xs text-gray-400 transition-all group">
                                 <X size={14} className="group-hover:text-red-400"/>
-                                <span className="font-bold tracking-wide">Trash</span>
+                                <span className="font-bold tracking-wide">Trash Engine</span>
                             </button>
                         </div>
                     </div>
@@ -1837,8 +1931,8 @@ const AgentLeeInterface = () => {
 
                 {/* 2. CENTER SPACER */}
                 <div className="flex-1 relative flex flex-col items-center justify-center min-w-0">
-                    {!leftOpen && <button onClick={()=>setLeftOpen(true)} title="Open sidebar" aria-label="Open sidebar" className="absolute top-4 left-4 p-2 bg-gray-900 rounded text-gray-400 z-50 hover:text-white pointer-events-auto shadow-lg border border-gray-800"><PanelLeftOpen/></button>}
-                    {!rightOpen && <button onClick={()=>setRightOpen(true)} title="Open panel" aria-label="Open panel" className="absolute top-4 right-4 p-2 bg-gray-900 rounded text-gray-400 z-50 hover:text-white pointer-events-auto shadow-lg border border-gray-800"><PanelRightOpen/></button>}
+                    {!leftOpen && <button onClick={()=>{console.log('[Sidebar] Opening left panel'); setLeftOpen(true);}} title="Open sidebar" aria-label="Open sidebar" className="absolute top-4 left-4 p-2 bg-gray-900 rounded text-gray-400 z-50 hover:text-white pointer-events-auto shadow-lg border border-gray-800"><PanelLeftOpen/></button>}
+                    {!rightOpen && <button onClick={()=>{console.log('[Sidebar] Opening right panel'); setRightOpen(true);}} title="Open panel" aria-label="Open panel" className="absolute top-4 right-4 p-2 bg-gray-900 rounded text-gray-400 z-50 hover:text-white pointer-events-auto shadow-lg border border-gray-800"><PanelRightOpen/></button>}
                     
                     <div className="absolute top-10 flex flex-col items-center z-10 pointer-events-none">
                          <div className={`px-4 py-1 rounded-full border ${agentStatus==='ACTING'?'border-cyan-500 bg-cyan-900/20 text-cyan-400': agentStatus==='THINKING'?'border-purple-500 bg-purple-900/20 text-purple-400': agentStatus==='SPEAKING' ? 'border-green-500 bg-green-900/20 text-green-400' : 'border-gray-800 bg-black/50 text-gray-500'} text-xs font-mono tracking-widest backdrop-blur`}>
@@ -1861,13 +1955,13 @@ const AgentLeeInterface = () => {
                 </div>
 
                 {/* 3. RIGHT PANEL */}
-                <div className={`${rightOpen ? 'translate-x-0' : 'translate-x-full'} fixed inset-y-0 right-0 z-50 w-96 max-w-[100vw] bg-[#0a0a0a] border-l border-gray-800 transition-transform duration-300 md:relative md:translate-x-0 md:transition-[width] md:${rightOpen ? 'w-96' : 'w-0'} flex flex-col shrink-0 pointer-events-auto shadow-2xl`}>
+                <div className={`fixed inset-y-0 right-0 z-50 bg-[#0a0a0a] border-l border-gray-800 transition-all duration-300 md:relative flex flex-col shrink-0 pointer-events-auto shadow-2xl ${rightOpen ? 'w-96 translate-x-0' : 'w-0 translate-x-full'} md:translate-x-0`}>
                     <div className="w-full flex flex-col h-full overflow-hidden"> 
                         <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
                             <div className="flex items-center gap-3">
                                 <span className="text-xs font-bold text-gray-400">CONVERSATION BOARD</span>
                             </div>
-                            <button onClick={()=>setRightOpen(false)} title="Close panel" aria-label="Close panel" className="text-gray-500 hover:text-white"><PanelRightClose size={18}/></button>
+                            <button onClick={()=>{console.log('[Sidebar] Closing right panel'); setRightOpen(false);}} title="Close panel" aria-label="Close panel" className="text-gray-500 hover:text-white"><PanelRightClose size={18}/></button>
                         </div>
                         
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
@@ -1965,33 +2059,9 @@ const AgentLeeInterface = () => {
               </div>
             )}
 
-            {/* TRASH MODAL */}
-            {showTrashModal && (
-                <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4">
-                    <div className="w-full max-w-2xl bg-[#0b0b0b] border border-gray-800 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="text-lg font-bold">Trash - Drive {selectedDrive} / Slot {selectedSlot}</div>
-                            <div className="flex gap-2">
-                                <button onClick={()=>setShowTrashModal(false)} className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700">Close</button>
-                            </div>
-                        </div>
-                        <div className="max-h-96 overflow-y-auto custom-scrollbar space-y-2">
-                            {trashItems.length === 0 && <div className="text-sm text-gray-500 italic p-4">Trash is empty.</div>}
-                            {trashItems.map((t:any) => (
-                                <div key={t.id} className="flex items-center justify-between p-3 bg-gray-900/40 rounded">
-                                    <div>
-                                        <div className="font-bold">{t.title}</div>
-                                        <div className="text-[12px] opacity-60">Deleted: {new Date(t._deleted_at || t.timestamp).toLocaleString()}</div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={()=>restoreTrashItem(t)} className="px-2 py-1 rounded bg-cyan-700 hover:bg-cyan-600 text-sm">Restore</button>
-                                        <button onClick={()=>permDeleteItem(t)} className="px-2 py-1 rounded bg-red-700 hover:bg-red-600 text-sm">Delete</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+            {/* SMART TRASH SYSTEM */}
+            {showTrashSystem && (
+                <SmartTrashSystem isOpen={showTrashSystem} onClose={() => setShowTrashSystem(false)} />
             )}
         </div>
     );
@@ -2009,6 +2079,7 @@ export default function App() {
             win.__AGENT_LEE_MEMORY_LAKE__ = store;
             win.__AGENT_LEE_RAG__ = rag;
             win.__AGENT_LEE_CAD__ = cad;
+            const unregisterVoice = registerVoiceTools(AGENT_CONTROL);
             console.info('[App] Agent Lee core services initialized');
         } catch (e) {
             console.warn('[App] Failed to initialize Agent Lee core services', e);
