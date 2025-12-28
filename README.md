@@ -21,9 +21,9 @@
 
 # Agent Lee: Agentic Operating System
 
-|                |                                                                                           |
-|----------------|-------------------------------------------------------------------------------------------|
-| **Agent Lee**  | **Version: 38.0 &#124; Build Date: December 27, 2025 &#124; Status: ONLINE**              |
+|                |                                                                                                |
+|:---------------|:-----------------------------------------------------------------------------------------------|
+| **Agent Lee**  | **Version: 8.0 &#124; Build Date: December 27, 2025 &#124; Status: ONLINE**                    |
 
 > _“The future of AI is not in the cloud—it's in your hands.”_
 
@@ -50,7 +50,6 @@
 - [x] **Modern UI/UX** (single-file monolith, operator-first design)
 - [x] **Open Source** (MIT License, community-driven)
 
-
 **Recent Improvements:**
 
 - Enhanced **artifact lineage** and mistake learning for RAG
@@ -64,7 +63,7 @@
 
 ---
 
-**Developer Notes: ONNX Runtime & Build Changes (Simple Explanation)**
+### Developer Notes: ONNX Runtime & Build Changes (Simple Explanation)
 
 We made a few build and runtime changes to make local model inference (ONNX Runtime
 Web) work reliably with Vite and the browser. Here's what happened and what to do.
