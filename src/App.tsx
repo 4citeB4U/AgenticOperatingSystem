@@ -914,8 +914,7 @@ const VoxelAgent = forwardRef(({ className }: { className?: string }, ref) => {
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
-    // Clear mount content safely without using innerHTML (avoid XSS sinks)
-    if (typeof container.replaceChildren === 'function') container.replaceChildren(); else container.textContent = '';
+    container.innerHTML = '';
     const w = window.innerWidth, h = window.innerHeight;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(55, w/h, 0.1, 1000);

@@ -34,28 +34,8 @@ export interface PolicyProfile {
   overrides: Partial<Record<CapabilityId, boolean>>;
 }
 
-import { secureGetItem } from './tools/secureStorage';
-
 function loadProfile(): PolicyProfile {
   try {
-    const passphrase = (globalThis as any).__SECURE_STORAGE_PASSPHRASE__ as string | undefined;
-    if (passphrase) {
-      // attempt secure read
-      // note: secureGetItem is async; but to avoid API churn keep synchronous fallback
-      // attempt async retrieval in background and return default until it resolves
-      secureGetItem('agent_lee_policy_profile', passphrase).then((v) => {
-        try {
-          if (v) {
-            const parsed = JSON.parse(v) as PolicyProfile;
-            if (parsed && parsed.id) {
-              // write parsed into localStorage for immediate sync (best-effort)
-              localStorage.setItem('agent_lee_policy_profile', JSON.stringify(parsed));
-            }
-          }
-        } catch (e) { /* ignore */ }
-      }).catch(() => { /* ignore */ });
-    }
-
     const raw = localStorage.getItem('agent_lee_policy_profile');
     if (!raw) return { id: 'LEEWAY_ZERO_EGRESS', label: 'Leeway Zero-Egress', zeroEgress: true, overrides: {} };
     const parsed = JSON.parse(raw) as PolicyProfile;

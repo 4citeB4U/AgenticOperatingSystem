@@ -22,13 +22,13 @@
 
 // src/AgentLeeStyleCore.tsx
 import React, {
-    createContext,
-    ReactNode,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 // Dynamically load transformers to avoid bundling large runtime
 let _transformers_core: any = null;
@@ -66,8 +66,7 @@ async function loadTransformersCore() {
       envRef.backends = (envRef.backends && typeof envRef.backends === 'object') ? envRef.backends : (envRef.backends = {});
       envRef.backends.onnx = (envRef.backends.onnx && typeof envRef.backends.onnx === 'object') ? envRef.backends.onnx : (envRef.backends.onnx = {});
       envRef.backends.onnx.wasm = (envRef.backends.onnx.wasm && typeof envRef.backends.onnx.wasm === 'object') ? envRef.backends.onnx.wasm : (envRef.backends.onnx.wasm = {});
-      // Ensure runtime loads wasm from the published models folder
-      envRef.backends.onnx.wasm.wasmPaths = envRef.backends.onnx.wasm.wasmPaths ?? '/models/onnx/';
+      envRef.backends.onnx.wasm.wasmPaths = envRef.backends.onnx.wasm.wasmPaths ?? '/onnx/';
 
     } catch (e) {
       // keep going if normalization fails

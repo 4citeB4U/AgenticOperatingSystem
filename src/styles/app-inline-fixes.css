@@ -1,0 +1,8 @@
+/* Small utility classes to replace inline styles flagged by webhint */
+.ae-pointer-auto { pointer-events: auto; }
+.diag-margin-auto { margin-top: auto; }
+.canvas-full { display: block; width: 100%; height: 100%; }
+
+.ae-pointer-auto{pointer-events:auto}
+.diag-margin-auto{margin-top:auto}
+.canvas-full{display:block;width:100%;height:100%}

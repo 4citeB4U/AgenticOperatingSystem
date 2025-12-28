@@ -1,0 +1,10 @@
+{
+  "root": "B:\\AgenticOperatingSystem",
+  "timestamp": "2025-12-22T00:19:53.0000858-06:00",
+  "archiveDir": "B:\\AgenticOperatingSystem\\tools\\legacy\\archived-20251222-001947",
+  "wrote": [
+    "B:\\AgenticOperatingSystem\\tools\\aos-browser-gate.ps1",
+    "B:\\AgenticOperatingSystem\\tools\\aos-gate.ps1"
+  ],
+  "removed": []
+}

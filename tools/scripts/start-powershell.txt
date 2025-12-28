@@ -1,0 +1,1 @@
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "B:\AgenticOperatingSystem\tools\scripts\Agentic-Dashboard.ps1"

@@ -1,0 +1,27 @@
+Import Inventory Summary
+========================
+Timestamp:               2025-12-20 05:39:34
+Roots:                   B:\AgenticOperatingSystem\public | B:\AgenticOperatingSystem\src
+Output Folder:           B:\AgenticOperatingSystem\tools\ImportInventory\20251220_053933
+
+Total files found:             45
+Files parsed for imports:      38
+Total import statements found: 0
+Unique import specs:           0
+Unresolved relative imports:   0
+Unreadable files:              38
+
+TSConfig alias resolution: ENABLED
+  tsconfig: B:\AgenticOperatingSystem\tsconfig.json
+  baseAbs : B:\AgenticOperatingSystem
+
+Top external/non-relative imports (count):
+
+Top relative imports (count):
+
+Outputs:
+  B:\AgenticOperatingSystem\tools\ImportInventory\20251220_053933\Files.csv
+  B:\AgenticOperatingSystem\tools\ImportInventory\20251220_053933\Imports.csv
+  B:\AgenticOperatingSystem\tools\ImportInventory\20251220_053933\Imports.json
+  B:\AgenticOperatingSystem\tools\ImportInventory\20251220_053933\Summary.txt
+  B:\AgenticOperatingSystem\tools\ImportInventory\20251220_053933\Unreadable.txt

@@ -20,6 +20,7 @@
    ============================================================================ */
 
 
+import { GoogleGenAI } from "@google/genai";
 import { X } from 'lucide-react';
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { AGENT_CONTROL } from './coreRegistry';
@@ -215,8 +216,7 @@ const VoxelAgent = forwardRef(({ className }: { className?: string }, ref) => {
 
       const container = mountRef.current;
       if (!container) return;
-      // Clear children safely (avoid innerHTML to reduce XSS exposure)
-      if (typeof container.replaceChildren === 'function') container.replaceChildren(); else container.textContent = '';
+      container.innerHTML = '';
       const w = container.clientWidth || 400, h = container.clientHeight || 300;
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(55, w/h, 0.1, 1000);
@@ -471,24 +471,20 @@ export const EmailCenter: React.FC<{ isOpen: boolean; onClose: () => void }> = (
         setAgentHistory(prev => [...prev, { role: 'agent', text: 'Remote LLM calls are blocked by Zero-Egress policy. Enable remote LLM to run summaries.', timestamp: 'Now' }]);
         return;
       }
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `Act as Agent Lee, an agentic OS. Summarize these emails concisely and classify each as URGENT (Action required) or NORMAL (FYI). Highlight the most critical item first.
+      Emails: ${unread.map(e => `[Sender: ${e.sender}, Subject: ${e.subject}] Body Sample: ${e.body.substring(0, 50)}`).join('\n')}`;
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt
+      });
 
-      // Client must NOT hold API keys. Expect a server-side proxy at /api/llm/generate
-      try {
-        const prompt = `Act as Agent Lee, an agentic OS. Summarize these emails concisely and classify each as URGENT (Action required) or NORMAL (FYI). Highlight the most critical item first.\nEmails: ${unread.map(e => `[Sender: ${e.sender}, Subject: ${e.subject}] Body Sample: ${e.body.substring(0, 50)}`).join('\n')}`;
-        const resp = await fetch('/api/llm/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt }),
-        });
-        if (!resp.ok) throw new Error(`Remote LLM proxy failed: ${resp.status}`);
-        const data = await resp.json();
-        const responseText = String(data?.text || data?.output || '');
-        const findingText = "This is my findings for the unread folder stream:\n\n" + responseText;
-        setAgentHistory(prev => [...prev, { role: 'agent', text: findingText, timestamp: 'Now', type: 'summary' }]);
-        await mlAdapter.putFile("agent/summaries/", `summary_${Date.now()}`, { summary: responseText, count: unread.length });
-      } catch (e) {
-        setAgentHistory(prev => [...prev, { role: 'agent', text: 'Remote summarization failed or proxy not configured.', timestamp: 'Now' }]);
-      }
+      const findingText = "This is my findings for the unread folder stream:\n\n" + response.text;
+      setAgentHistory(prev => [...prev, { role: 'agent', text: findingText, timestamp: 'Now', type: 'summary' }]);
+      
+      // Save findings to Memory Lake
+      await mlAdapter.putFile("agent/summaries/", `summary_${Date.now()}`, { summary: response.text, count: unread.length });
 
     } catch (e) {
       setAgentHistory(prev => [...prev, { role: 'agent', text: "Intelligence stream stream interrupted. Please retry summarization.", timestamp: 'Now' }]);

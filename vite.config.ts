@@ -76,7 +76,7 @@ export default defineConfig(({ mode }: { mode: string }): UserConfig => {
     preview: {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
+      target: 'esnext',
       },
     },
 
