@@ -36,8 +36,8 @@ export const MODEL_REGISTRY: Record<string, ModelEntry> = {
   },
 
   EMBEDDER: {
-    hubRepo: 'Qwen/Qwen3-Embedding-0.6B',
-    localFolder: 'Qwen_Qwen3-Embedding-0.6B',
+    hubRepo: 'onnx-community/Qwen2.5-0.5B-Instruct',
+    localFolder: 'onnx-community_Qwen2.5-0.5B-Instruct',
   },
 
   /**

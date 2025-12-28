@@ -21,25 +21,25 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
 import {
-  Activity,
-  AlertCircle,
-  Chrome,
-  Cpu,
-  Eye,
-  Globe,
-  Hexagon,
-  Layers,
-  Monitor,
-  Play,
-  RotateCcw,
-  Save,
-  Settings,
-  Smartphone,
-  Square,
-  Terminal,
-  Volume2,
-  X,
-  Zap
+    Activity,
+    AlertCircle,
+    Chrome,
+    Cpu,
+    Eye,
+    Globe,
+    Hexagon,
+    Layers,
+    Monitor,
+    Play,
+    RotateCcw,
+    Save,
+    Settings,
+    Smartphone,
+    Square,
+    Terminal,
+    Volume2,
+    X,
+    Zap
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AGENT_CONTROL } from './coreRegistry';
@@ -186,8 +186,10 @@ const analyzeVoice = (voice: SpeechSynthesisVoice): VoiceOption => {
   };
 };
 
+import { safeAtob } from './tools/safeBase64';
+
 function decode(base64: string) {
-  const binaryString = atob(base64);
+  const binaryString = safeAtob(base64);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {

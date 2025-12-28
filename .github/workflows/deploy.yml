@@ -24,14 +24,35 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: 20
+          cache: npm
 
-      - name: Clean install (include optional deps)
+      - name: Install (include optional deps)
         run: npm ci --include=optional
 
       - name: Build
         run: npm run build
+
+      # Fix SPA deep-link refresh 404 on GitHub Pages
+      - name: Add SPA fallback (404.html)
+        run: |
+          test -f dist/index.html
+          cp dist/index.html dist/404.html
+
+      # Guardrail: ensure model files actually ship in the Pages artifact
+      - name: Verify model assets exist in dist
+        run: |
+          echo "dist top-level:"
+          ls -la dist
+
+          echo "dist/models:"
+          ls -la dist/models
+
+          # Adjust if your manifest has a different name:
+          test -f dist/models/MODEL_MANIFEST.json
+
+          # Ensure the embedder model folder exists:
+          test -d dist/models/onnx-community_Qwen2.5-0.5B-Instruct
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -46,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: Out-Null{{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy
         id: deployment

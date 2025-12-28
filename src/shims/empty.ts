@@ -20,4 +20,9 @@
    ============================================================================ */
 
 // Simple shim for Node built-ins in browser build
-export default {};
+// Export a CommonJS-compatible empty object so libraries that
+// check `Object.keys(fs)` or `Object.keys(path)` do not receive
+// `undefined` or a module wrapper with only a `default` key.
+const EMPTY: any = Object.create(null);
+export default EMPTY;
+try { (module as any).exports = EMPTY; } catch { /* ignore in ESM-only runtimes */ }

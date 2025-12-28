@@ -33,7 +33,9 @@ const BASE_MODELS_URL = (() => {
 const BASE_ORT_URL = (() => {
   const base = (import.meta as any).env?.BASE_URL || '/';
   const normalized = String(base).endsWith('/') ? String(base) : `${base}/`;
-  return `${normalized}onnx/`;
+  // NOTE: runtime wasm/onnx assets are shipped under `dist/models/onnx/`.
+  // Use `models/onnx/` so runtime loads from `<base>/models/onnx/`.
+  return `${normalized}models/onnx/`;
 })();
 
 let _transformers: any = null;
@@ -67,6 +69,43 @@ function hardenTransformersEnv(mod: any) {
     envRef.backends.onnx.wasm.wasmPaths = String(envRef.backends.onnx.wasm.wasmPaths ?? BASE_ORT_URL);
     if (!String(envRef.backends.onnx.wasm.wasmPaths).endsWith('/')) envRef.backends.onnx.wasm.wasmPaths += '/';
   } catch { /* ignore */ }
+
+  // Enforce single-threaded ORT on hosts that do not support cross-origin isolation
+  // (e.g. GitHub Pages). If crossOriginIsolated and SharedArrayBuffer are available
+  // we allow a small number of threads; otherwise force `numThreads = 1` and
+  // disable worker proxy usage to avoid SharedArrayBuffer runtime errors.
+  try {
+    const ortThreadsAllowed = (): boolean => {
+      try {
+        const coi = typeof (globalThis as any).crossOriginIsolated !== 'undefined' && (globalThis as any).crossOriginIsolated === true;
+        const sab = typeof (globalThis as any).SharedArrayBuffer !== 'undefined';
+        return Boolean(coi && sab);
+      } catch (e) {
+        return false;
+      }
+    };
+
+    const allowThreads = ortThreadsAllowed();
+    const hardwareConcurrency = (typeof navigator !== 'undefined' && (navigator as any).hardwareConcurrency) || 1;
+    const desiredThreads = allowThreads ? Math.max(1, Math.min(4, Number(hardwareConcurrency) || 1)) : 1;
+
+    envRef.backends.onnx.wasm.numThreads = Number(envRef.backends.onnx.wasm.numThreads ?? desiredThreads);
+
+    // Some ORT integrations use a `proxy` worker to host wasm. Disable proxy on
+    // non-isolated origins to avoid worker/SAB issues; enable only when threads allowed.
+    envRef.backends.onnx.wasm.proxy = Boolean(envRef.backends.onnx.wasm.proxy && allowThreads);
+
+    // Helpful debug output when running locally
+    try {
+      console.info('[LocalModelHub] ORT wasm config', {
+        wasmPaths: envRef.backends.onnx.wasm.wasmPaths,
+        crossOriginIsolated: (globalThis as any).crossOriginIsolated,
+        sharedArrayBuffer: typeof (globalThis as any).SharedArrayBuffer !== 'undefined',
+        numThreads: envRef.backends.onnx.wasm.numThreads,
+        proxy: envRef.backends.onnx.wasm.proxy,
+      });
+    } catch { /* ignore */ }
+  } catch (e) { /* ignore */ }
 
   return envRef;
 }

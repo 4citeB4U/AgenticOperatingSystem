@@ -33,10 +33,11 @@
 
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, type UserConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
-export default defineConfig(({ mode }) => {
+
+export default defineConfig(({ mode }: { mode: string }): UserConfig => {
   const isProd = mode === 'production';
 
   return {
@@ -84,6 +85,15 @@ export default defineConfig(({ mode }) => {
         // ✅ Browser shims
         fs: resolve(__dirname, 'src/shims/empty.ts'),
         path: resolve(__dirname, 'src/shims/empty.ts'),
+        // Browser shims or package aliases
+        // Note: do NOT alias 'onnxruntime-web' to a /public path — Vite will
+        // treat that as a module import and fail. Leave ORT to resolve from
+        // the package and use `wasmPaths` at runtime to point to `/onnx/`.
+        // Map '/onnx' imports (used by @xenova/transformers) to the
+        // onnxruntime-web distribution in node_modules so Vite resolves
+        // them as modules instead of treating them as /public assets.
+        '/onnx': resolve(__dirname, 'node_modules/onnxruntime-web/dist'),
+        '/onnx/': resolve(__dirname, 'node_modules/onnxruntime-web/dist') + '/',
       },
     },
 
@@ -112,11 +122,10 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         // Suppress EVAL warnings coming from prebuilt ORT bundles
         // (these are expected in third-party minified libs and safe to ignore)
-        onwarn(warning, warn) {
+        external: ['onnxruntime-web'],
+        onwarn(warning: import('rollup').RollupLog, warn: (warning: import('rollup').RollupLog) => void) {
           try {
-            const file = String(warning?.loc?.file ?? '');
-            const isORT = /onnxruntime-web|@xenova\/transformers/.test(file);
-            if (warning && warning.code === 'EVAL' && isORT) return;
+            // fall through to default warn
           } catch (e) {
             // fall through to default warn
           }
@@ -141,7 +150,11 @@ export default defineConfig(({ mode }) => {
      * optimizeDeps is often the safer choice for wasm path stability.
      */
     optimizeDeps: {
+      // Exclude ORT from prebundle to avoid Vite static analysis errors
       exclude: ['onnxruntime-web'],
+      esbuildOptions: {
+        target: 'esnext',
+      },
     },
   };
 });

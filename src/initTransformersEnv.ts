@@ -84,8 +84,12 @@ export async function initTransformersEnv() {
   env.backends.onnx.wasm ??= {};
   env.backends.onnx.webgpu ??= {};
   env.backends.onnx.webgl ??= {};
-  env.backends.onnx.wasm.wasmPaths = env.backends.onnx.wasm.wasmPaths ?? `${baseSlash}onnx/`;
-  env.backends.onnx.wasm.numThreads ??= 1;
+    // Ensure wasm paths point to published models folder and determine threading
+    env.backends.onnx.wasm.wasmPaths = env.backends.onnx.wasm.wasmPaths ?? `${baseSlash}models/onnx/`;
+  // Allow threads only when cross-origin isolated and SAB available; default to 1 otherwise
+  const allowThreads = (typeof (globalThis as any).crossOriginIsolated !== 'undefined' && (globalThis as any).crossOriginIsolated === true)
+    && typeof (globalThis as any).SharedArrayBuffer !== 'undefined';
+  env.backends.onnx.wasm.numThreads ??= allowThreads ? Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1)) : 1;
   env.backends.onnx.logLevel ??= 'fatal';
   try {
     console.debug('[initTransformersEnv] final env', env);

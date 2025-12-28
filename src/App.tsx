@@ -1,4 +1,3 @@
-
 /* 
    LEEWAY INDUSTRIES - AGENT LEE MONOLITH v36.7 (STABLE VISUALIZER FIX + UX UPDATE)
    "The Sovereign Operator"
@@ -222,6 +221,10 @@ class MultiDriveFileSystem {
         if (!db.objectStoreNames.contains('personality')) {
             db.createObjectStore('personality', { keyPath: 'id' });
         }
+        // Trash store to hold deleted items for potential restore
+        if (!db.objectStoreNames.contains('trash')) {
+            db.createObjectStore('trash', { keyPath: 'id' });
+        }
       };
       req.onsuccess = (e: any) => {
         const db = e.target.result;
@@ -258,24 +261,30 @@ class MultiDriveFileSystem {
       const db = await this.openSlot(driveId, slot);
       return new Promise<{ files: ConversationFile[], directories: Directory[] }>((resolve) => {
           const tx = db.transaction(['conversations', 'directories'], 'readonly');
-          
-          const filesReq = tx.objectStore('conversations').index('directoryId').getAll(directoryId);
-          // For directories, we currently only support root level directories in a slot
-          let dirsReq: IDBRequest;
-          if (directoryId === null) {
-              dirsReq = tx.objectStore('directories').getAll();
-          } else {
-              // If we are inside a directory, we don't show sub-directories in this version (depth 1)
-              dirsReq = { result: [], onsuccess: null } as any; 
-          }
 
-          let files: ConversationFile[] = [];
+          // Read all conversations then filter by directoryId in JS. This avoids
+          // edge-cases where indexedDB indices treat `null` specially across browsers.
+          const allReq = tx.objectStore('conversations').getAll();
           let directories: Directory[] = [];
+          let files: ConversationFile[] = [];
 
-          filesReq.onsuccess = () => { files = filesReq.result; };
-          if(directoryId === null) {
-            // @ts-ignore
-             dirsReq.onsuccess = () => { directories = dirsReq.result; };
+          allReq.onsuccess = () => {
+              try {
+                  const all = Array.isArray(allReq.result) ? allReq.result : [];
+                  files = all.filter((f: any) => {
+                      // Normalize stored directoryId and requested dirId to both null or string
+                      const stored = (typeof f.directoryId === 'string') ? f.directoryId : (f.directoryId == null ? null : String(f.directoryId));
+                      const requested = (typeof directoryId === 'string') ? directoryId : (directoryId == null ? null : String(directoryId));
+                      return stored === requested;
+                  });
+              } catch (e) {
+                  console.warn('[Drive] listContent filter failed', e);
+                  files = allReq.result || [];
+              }
+          };
+
+          if (directoryId === null) {
+              tx.objectStore('directories').getAll().onsuccess = (e: any) => { directories = e.target.result || []; };
           }
 
           tx.oncomplete = () => {
@@ -328,7 +337,19 @@ class MultiDriveFileSystem {
           neural_signature: `LEE-MEM-${crypto.randomUUID()}`,
           directoryId: directoryId
       });
-      tx.oncomplete = () => resolve({ success: true, id });
+      tx.oncomplete = async () => {
+          // Verify write by reading the stored record (best-effort, separate readonly transaction)
+          try {
+              const rtx = db.transaction('conversations', 'readonly');
+              const getReq = rtx.objectStore('conversations').get(id);
+              getReq.onsuccess = () => {
+                  console.log('[Drive] saveConversation verify get', { id, value: getReq.result });
+              };
+          } catch (e) {
+              console.warn('[Drive] saveConversation verify failed', e);
+          }
+          resolve({ success: true, id });
+      };
     });
   }
 
@@ -402,6 +423,87 @@ class MultiDriveFileSystem {
           }
       }
       this.downloadJSON(systemData, `AGENT_LEE_FULL_SYSTEM_${Date.now()}`);
+  }
+
+  // Move a conversation into trash (soft-delete)
+  async deleteFile(driveId: string, slot: number, fileId: string) {
+      const db = await this.openSlot(driveId, slot);
+      return new Promise<boolean>(async (resolve) => {
+          const tx = db.transaction(['conversations', 'trash'], 'readwrite');
+          const store = tx.objectStore('conversations');
+          const getReq = store.get(fileId);
+          getReq.onsuccess = () => {
+              const file = getReq.result;
+              if (!file) return resolve(false);
+              const trashStore = tx.objectStore('trash');
+              const trashed = { ...file, _deleted_at: new Date().toISOString(), _origin: { driveId, slot } };
+              trashStore.put(trashed);
+              store.delete(fileId);
+          };
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+      });
+  }
+
+  // Restore a trashed file back to conversations
+  async restoreFile(driveId: string, slot: number, fileId: string) {
+      const db = await this.openSlot(driveId, slot);
+      return new Promise<boolean>((resolve) => {
+          const tx = db.transaction(['conversations', 'trash'], 'readwrite');
+          const tstore = tx.objectStore('trash');
+          const getReq = tstore.get(fileId);
+          getReq.onsuccess = () => {
+              const rec = getReq.result;
+              if (!rec) return resolve(false);
+              const convStore = tx.objectStore('conversations');
+              // remove transient trash metadata
+              const { _deleted_at, _origin, ...orig } = rec;
+              convStore.put(orig);
+              tstore.delete(fileId);
+          };
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+      });
+  }
+
+  // List trashed items for a slot
+  async listTrash(driveId: string, slot: number) {
+      const db = await this.openSlot(driveId, slot);
+      return new Promise<any[]>((resolve) => {
+          const tx = db.transaction('trash', 'readonly');
+          const req = tx.objectStore('trash').getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+      });
+  }
+
+  // Permanently delete a trashed file
+  async permanentlyDeleteFile(driveId: string, slot: number, fileId: string) {
+      const db = await this.openSlot(driveId, slot);
+      return new Promise<boolean>((resolve) => {
+          const tx = db.transaction('trash', 'readwrite');
+          tx.objectStore('trash').delete(fileId);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+      });
+  }
+
+  // Rename a conversation file
+  async renameFile(driveId: string, slot: number, fileId: string, newTitle: string) {
+      const db = await this.openSlot(driveId, slot);
+      return new Promise<boolean>((resolve) => {
+          const tx = db.transaction('conversations', 'readwrite');
+          const store = tx.objectStore('conversations');
+          const req = store.get(fileId);
+          req.onsuccess = () => {
+              const rec = req.result;
+              if (!rec) return resolve(false);
+              rec.title = newTitle;
+              store.put(rec);
+          };
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+      });
   }
 
   downloadJSON(data: any, filename: string) {
@@ -780,7 +882,12 @@ class AgentVoiceManager {
         this.pendingCommit = false;
         this.isListening = true;
         window.dispatchEvent(new CustomEvent('voice-status', { detail: 'LISTENING' }));
-        try { this.recognition.start(); } catch(e) { console.error(e); this.isListening = false; }
+        try {
+            this.recognition.start();
+        } catch (e) {
+            console.error(e);
+            this.isListening = false;
+        }
     }
     stopListening(shouldCommit = false) { 
         if (shouldCommit) this.pendingCommit = true;
@@ -807,7 +914,8 @@ const VoxelAgent = forwardRef(({ className }: { className?: string }, ref) => {
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
-    container.innerHTML = '';
+    // Clear mount content safely without using innerHTML (avoid XSS sinks)
+    if (typeof container.replaceChildren === 'function') container.replaceChildren(); else container.textContent = '';
     const w = window.innerWidth, h = window.innerHeight;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(55, w/h, 0.1, 1000);
@@ -1288,7 +1396,7 @@ const CameraModal = ({ onClose, onCapture }: { onClose: () => void, onCapture: (
             <canvas ref={canvasRef} className="hidden" />
             <div className="absolute bottom-3 left-0 right-0 flex justify-center items-center gap-4">
                 <button onClick={()=>setFacingMode(f=>f==='user'?'environment':'user')} title="Flip camera" aria-label="Flip camera" className="p-2 rounded-full bg-gray-900/80 border border-gray-700 text-white hover:bg-gray-800 backdrop-blur"><RefreshCw size={14}/></button>
-                <button onClick={snap} title="Capture photo" aria-label="Capture photo" className="p-3 rounded-full bg-white ring-2 ring-cyan-500/50 hover:scale-110 transition-transform shadow-lg"></button>
+                <button onClick={snap} title="Capture photo" aria-label="Capture photo" className="p-3 rounded-full bg-white ring-2 ring-cyan-500/50 hover:scale-110 transition-transform shadow-lg"><Camera size={18} className="text-cyan-600"/></button>
             </div>
         </div>
     );
@@ -1367,19 +1475,26 @@ const AgentLeeInterface = () => {
     useEffect(() => {
         const autoSave = async () => {
             if (messages.length > 0 && messages[0].text) {
+                // LOGGING PROBE 2: Before Save
+                const title = messages[0].text.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 30).trim() || "New Session";
+                console.log('[AutoSave] activeFileId:', activeFileId, 'messages.length:', messages.length, 'title:', title, 'drive:', selectedDrive, 'slot:', selectedSlot, 'dir:', currentDirId);
                 // If we don't have an active file ID yet, create one from the first message
                 if (!activeFileId) {
-                    // Generate a "Subject" based filename from first message (first 30 chars)
-                    const title = messages[0].text.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 30).trim() || "New Session";
                     const result = await DriveSystem.saveConversation(selectedDrive, selectedSlot, title, messages, currentDirId);
+                    // LOGGING PROBE 3: After Save
+                    console.log('[AutoSave] save result:', result);
                     if (result.success) {
                         setActiveFileId(result.id);
-                        loadSlotContent(selectedDrive, selectedSlot, currentDirId); // Refresh explorer immediately
+                        const refreshed = await loadSlotContent(selectedDrive, selectedSlot, currentDirId); // Refresh explorer immediately
+                        // LOGGING PROBE 3b: After List Refresh - log returned drive content (state updates are async)
+                        console.log('[AutoSave] after list refresh (drive):', { filesCount: (refreshed.files || []).length, filesSample: (refreshed.files || []).slice(0,3) });
                     }
                 } else {
-                    // We already have an ID, just update the content
-                    const title = messages[0].text.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 30).trim();
                     await DriveSystem.saveConversation(selectedDrive, selectedSlot, title, messages, currentDirId, activeFileId);
+                    // LOGGING PROBE 3: After Save (update)
+                    console.log('[AutoSave] updated existing conversation');
+                    const refreshed = await loadSlotContent(selectedDrive, selectedSlot, currentDirId);
+                    console.log('[AutoSave] after list refresh (drive):', { filesCount: (refreshed.files || []).length, filesSample: (refreshed.files || []).slice(0,3) });
                 }
             }
         };
@@ -1496,8 +1611,18 @@ const AgentLeeInterface = () => {
         setSelectedSlot(slot);
         setCurrentDirId(dirId);
         const content = await DriveSystem.listContent(drive, slot, dirId);
-        setCurrentFiles(content.files);
-        setCurrentDirs(content.directories);
+        console.log('[Drive] listContent result', { drive, slot, dirId, count: (content.files || []).length });
+        // Sort files newest-first for UI consistency
+        try {
+            const files = Array.isArray(content.files) ? content.files.slice().sort((a,b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0)) : [];
+            setCurrentFiles(files);
+            setCurrentDirs(Array.isArray(content.directories) ? content.directories : []);
+        } catch (e) {
+            console.warn('[Drive] error processing listContent', e);
+            setCurrentFiles(content.files || []);
+            setCurrentDirs(content.directories || []);
+        }
+        return content;
     };
 
     const handleCreateDir = async () => {
@@ -1513,37 +1638,80 @@ const AgentLeeInterface = () => {
     };
 
     const handleMoveFile = async (fileId: string, targetDirId: string | null) => {
-        const success = await DriveSystem.moveFile(selectedDrive, selectedSlot, fileId, targetDirId);
-        if (success) {
-            loadSlotContent(selectedDrive, selectedSlot, currentDirId);
-        } else {
-            alert("Move failed. Directory may be full.");
-        }
+      const success = await DriveSystem.moveFile(selectedDrive, selectedSlot, fileId, targetDirId);
+      if (success) {
+          loadSlotContent(selectedDrive, selectedSlot, currentDirId);
+      } else {
+          alert("Move failed. Directory may be full.");
+      }
     }
 
     const saveConversation = async () => {
         const title = messages[0]?.text.slice(0, 30) || `Chat ${new Date().toLocaleTimeString()}`;
-        const success = await DriveSystem.saveConversation(selectedDrive, selectedSlot, title, messages, currentDirId);
-        if(success) {
-            loadSlotContent(selectedDrive, selectedSlot, currentDirId);
+        const res: any = await DriveSystem.saveConversation(selectedDrive, selectedSlot, title, messages, currentDirId);
+        if (res && res.success) {
+            await loadSlotContent(selectedDrive, selectedSlot, currentDirId);
+            return true;
         } else {
             alert("Directory/Slot Full (Max 20).");
+            return false;
         }
-        return success;
     };
 
     const handleNewSession = async () => {
+        // LOGGING PROBE 1: New Session
+        console.log('[NewSession] activeFileId:', activeFileId, 'messages.length:', messages.length, 'drive:', selectedDrive, 'slot:', selectedSlot, 'dir:', currentDirId);
         // Clear active ID so next message creates a NEW file
         setActiveFileId(null);
         setMessages([]);
         setAgentStatus('IDLE');
+        // Immediately refresh left panel so it shows empty state
+        loadSlotContent(selectedDrive, selectedSlot, currentDirId);
     };
 
     const handleLoadChat = (file: any) => {
         if(file && file.content) {
             setMessages(file.content);
             setActiveFileId(file.id); // Set active ID so we continue saving to THIS file
+            // Refresh left panel to ensure selection is always in sync
+            loadSlotContent(selectedDrive, selectedSlot, currentDirId);
         }
+    };
+
+    // Rename a conversation
+    const handleRename = async (file: any) => {
+        const newTitle = prompt('Rename conversation', file.title || '');
+        if (!newTitle || newTitle.trim() === '') return;
+        const ok = await DriveSystem.renameFile(selectedDrive, selectedSlot, file.id, newTitle.trim());
+        if (ok) await loadSlotContent(selectedDrive, selectedSlot, currentDirId);
+    };
+
+    // Soft-delete (move to trash)
+    const handleDelete = async (file: any) => {
+        if (!confirm(`Move "${file.title || 'untitled'}" to Trash?`)) return;
+        const ok = await DriveSystem.deleteFile(selectedDrive, selectedSlot, file.id);
+        if (ok) await loadSlotContent(selectedDrive, selectedSlot, currentDirId);
+    };
+
+    // Trash modal state and helpers
+    const [showTrashModal, setShowTrashModal] = useState(false);
+    const [trashItems, setTrashItems] = useState<any[]>([]);
+    const openTrash = async () => {
+        const items = await DriveSystem.listTrash(selectedDrive, selectedSlot);
+        setTrashItems(items || []);
+        setShowTrashModal(true);
+    };
+    const restoreTrashItem = async (item: any) => {
+        const ok = await DriveSystem.restoreFile(selectedDrive, selectedSlot, item.id);
+        if (ok) {
+            setTrashItems(await DriveSystem.listTrash(selectedDrive, selectedSlot));
+            await loadSlotContent(selectedDrive, selectedSlot, currentDirId);
+        }
+    };
+    const permDeleteItem = async (item: any) => {
+        if (!confirm('Permanently delete this item?')) return;
+        await DriveSystem.permanentlyDeleteFile(selectedDrive, selectedSlot, item.id);
+        setTrashItems(await DriveSystem.listTrash(selectedDrive, selectedSlot));
     };
 
     return (
@@ -1610,15 +1778,35 @@ const AgentLeeInterface = () => {
 
                     <div className="relative flex-1 overflow-hidden">
                         <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                            <button onClick={handleNewSession} className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 text-sm border border-gray-700/50 mb-4 transition-colors text-white"><Plus size={16}/> New Session</button>
+                            <button onClick={handleNewSession} className="w-full flex flex-col items-start gap-1 p-3 rounded hover:bg-gray-800 text-sm border border-gray-700/50 mb-2 transition-colors text-white">
+                                <div className="flex items-center gap-2"><Plus size={16}/> <span className="font-bold">New Conversation</span></div>
+                                <div className="text-[11px] text-gray-400">Click to create a new conversation</div>
+                            </button>
                             <div className="text-[10px] uppercase text-gray-600 font-bold px-2 pt-2">Active Drive: {selectedDrive} / Slot {selectedSlot}</div>
-                            {currentFiles.length === 0 && <div className="text-xs text-gray-500 p-2 italic">No conversations in this slot.</div>}
-                            {currentFiles.map(f => (
-                                <button key={f.id} onClick={() => handleLoadChat(f)} className={`w-full text-left p-3 text-xs rounded truncate border mb-1 transition-all ${activeFileId === f.id ? 'bg-cyan-900/20 border-cyan-500 text-white' : 'bg-transparent border-transparent text-gray-400 hover:bg-gray-800 hover:text-white'}`}>
-                                    <div className="font-bold truncate">{f.title}</div>
-                                    <div className="text-[9px] opacity-50">{new Date(f.timestamp).toLocaleTimeString()}</div>
-                                </button>
-                            ))}
+                            <div className="text-[10px] uppercase text-gray-600 font-bold px-2 pt-2">Conversation History</div>
+                            {/* Show only conversations from the past 31 days */}
+                            {(() => {
+                                const now = Date.now();
+                                const THIRTY_ONE_DAYS = 31 * 24 * 60 * 60 * 1000;
+                                const recent = currentFiles.filter((f:any) => {
+                                    try { const t = new Date(f.timestamp).getTime(); return !isNaN(t) && (now - t) <= THIRTY_ONE_DAYS; } catch { return false; }
+                                });
+                                if (recent.length === 0) {
+                                    return <div className="text-xs text-gray-500 p-2 italic">No conversations in this slot for the past 31 days.</div>;
+                                }
+                                return recent.map((f:any) => (
+                                    <div key={f.id} className={`w-full flex items-center justify-between p-1 mb-1 transition-all ${activeFileId === f.id ? 'bg-cyan-900/10 border-l-2 border-cyan-500' : ''}`}>
+                                        <div onClick={() => handleLoadChat(f)} className="flex-1 text-left p-3 text-xs cursor-pointer">
+                                            <div className="font-bold truncate">{f.title}</div>
+                                            <div className="text-[9px] opacity-50">{new Date(f.timestamp).toLocaleString()}</div>
+                                        </div>
+                                        <div className="flex gap-1 pr-2">
+                                            <button title="Rename" onClick={(e)=>{ e.stopPropagation(); handleRename(f); }} className="p-1 rounded hover:bg-gray-800 text-gray-400"><Settings size={14}/></button>
+                                            <button title="Delete" onClick={(e)=>{ e.stopPropagation(); handleDelete(f); }} className="p-1 rounded hover:bg-red-800 text-gray-400"><X size={14}/></button>
+                                        </div>
+                                    </div>
+                                ));
+                            })()}
                         </div>
                     </div>
 
@@ -1637,6 +1825,12 @@ const AgentLeeInterface = () => {
                             <div className="text-cyan-900/60 font-bold">POWERED BY</div>
                             <div className="text-gray-500">LEEWAY INNOVATION</div>
                             <div className="text-gray-700 mt-1">A Leeway Industries Product</div>
+                        </div>
+                        <div className="p-3 border-t border-gray-800">
+                            <button onClick={openTrash} className="w-full flex items-center gap-2 p-3 rounded-lg bg-gray-800 border border-gray-700 hover:bg-gray-700 hover:text-white hover:border-red-500 text-xs text-gray-400 transition-all group">
+                                <X size={14} className="group-hover:text-red-400"/>
+                                <span className="font-bold tracking-wide">Trash</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1769,6 +1963,35 @@ const AgentLeeInterface = () => {
               <div className="absolute inset-0 z-[100] bg-black">
                 <AgentLeeBootScreen onInitialize={handleBootInitialize} />
               </div>
+            )}
+
+            {/* TRASH MODAL */}
+            {showTrashModal && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4">
+                    <div className="w-full max-w-2xl bg-[#0b0b0b] border border-gray-800 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-lg font-bold">Trash - Drive {selectedDrive} / Slot {selectedSlot}</div>
+                            <div className="flex gap-2">
+                                <button onClick={()=>setShowTrashModal(false)} className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700">Close</button>
+                            </div>
+                        </div>
+                        <div className="max-h-96 overflow-y-auto custom-scrollbar space-y-2">
+                            {trashItems.length === 0 && <div className="text-sm text-gray-500 italic p-4">Trash is empty.</div>}
+                            {trashItems.map((t:any) => (
+                                <div key={t.id} className="flex items-center justify-between p-3 bg-gray-900/40 rounded">
+                                    <div>
+                                        <div className="font-bold">{t.title}</div>
+                                        <div className="text-[12px] opacity-60">Deleted: {new Date(t._deleted_at || t.timestamp).toLocaleString()}</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={()=>restoreTrashItem(t)} className="px-2 py-1 rounded bg-cyan-700 hover:bg-cyan-600 text-sm">Restore</button>
+                                        <button onClick={()=>permDeleteItem(t)} className="px-2 py-1 rounded bg-red-700 hover:bg-red-600 text-sm">Delete</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

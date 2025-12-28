@@ -20,6 +20,7 @@
    ============================================================================ */
 
 import { DBSchema, IDBPDatabase, openDB } from 'idb';
+import { safeAtob, safeBtoa } from './tools/safeBase64';
 
 const DB_NAME = 'agent-lee-neural-core';
 const DB_VERSION = 4;
@@ -89,7 +90,7 @@ async function gzipIfPossible(text: string): Promise<{ compressed: boolean; cont
     const arr = new Uint8Array(await gzBlob.arrayBuffer());
     let bin = '';
     for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
-    const b64 = btoa(bin);
+    const b64 = safeBtoa(bin);
     if (b64.length < text.length * 0.9) return { compressed: true, content: b64 };
     return { compressed: false, content: text };
   } catch {
@@ -103,7 +104,7 @@ async function gunzipIfNeeded(file: MemoryLakeFile): Promise<string> {
   const DS: any = (globalThis as any).DecompressionStream;
   if (!DS) throw new Error('DecompressionStream not supported for compressed lake entries');
 
-  const bin = atob(file.content);
+  const bin = safeAtob(file.content);
   const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   const stream = new Blob([arr], { type: file.mime || 'application/octet-stream' }).stream().pipeThrough(new DS('gzip'));

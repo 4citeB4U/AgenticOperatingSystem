@@ -21,10 +21,12 @@
   "scripts": {
     "dev": "node tools/copy_wasm.cjs && vite",
     "build": "node tools/copy_wasm.cjs && tsc && vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --port 4173",
+    "postinstall": "node tools/patch_xenova_transformers.cjs",
     "leeway:audit": "tsx src/leeway-audit.ts",
     "leeway:fix": "tsx src/leeway-audit.ts --fix",
-    "leeway:report": "tsx src/leeway-audit.ts --report"
+    "leeway:report": "tsx src/leeway-audit.ts --report",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",
@@ -40,6 +42,7 @@
     "react": "^19.2.3",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.11.0",
     "tesseract.js": "^6.0.1",
     "three": "^0.181.2",
     "uuid": "^11.0.0"
